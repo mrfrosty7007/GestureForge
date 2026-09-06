@@ -1,4 +1,3 @@
-import React from 'react';
 import Header from './components/Header';
 import StatusCard from './components/StatusCard';
 import CameraPlaceholder from './components/CameraPlaceholder';

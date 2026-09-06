@@ -1,4 +1,3 @@
-import React from 'react';
 import { Sparkles, Terminal, Layers } from 'lucide-react';
 
 export default function Header() {

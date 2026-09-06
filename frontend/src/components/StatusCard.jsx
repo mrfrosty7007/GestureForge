@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Activity, RefreshCw, Server, Wifi, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 export default function StatusCard() {
   const [status, setStatus] = useState('connecting'); // 'online' | 'connecting' | 'offline'
   const [serviceName, setServiceName] = useState('Checking...');
   const [latency, setLatency] = useState(null);
   const [lastChecked, setLastChecked] = useState(null);
-  const [errorMsg, setErrorMsg] = useState(null);
 
   // Read backend URL from environment variable, fallback to default
   const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
   const checkHealth = useCallback(async () => {
     setStatus('connecting');
-    setErrorMsg(null);
     const startTime = performance.now();
 
     try {
@@ -33,17 +31,14 @@ export default function StatusCard() {
           setServiceName(data.service || 'GestureForge Backend');
         } else {
           setStatus('offline');
-          setErrorMsg(`Unexpected status: ${data.status}`);
         }
       } else {
         setStatus('offline');
-        setErrorMsg(`HTTP Error ${response.status}`);
       }
-    } catch (err) {
+    } catch {
       setLatency(null);
       setStatus('offline');
       setServiceName('Unreachable');
-      setErrorMsg('Cannot connect to FastAPI server');
     }
   }, [apiUrl]);
 

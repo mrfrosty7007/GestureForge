@@ -1,5 +1,4 @@
-import React from 'react';
-import { Camera, VideoOff, Crosshair, ShieldCheck } from 'lucide-react';
+import { Camera, Crosshair } from 'lucide-react';
 
 export default function CameraPlaceholder() {
   return (
