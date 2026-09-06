@@ -1,7 +1,7 @@
 """Tests for GestureForge Health and Gateway Endpoints.
 
 Validates that the FastAPI application initializes properly and returns
-the expected status response conforming to the Phase 0 specification.
+the expected status response conforming to the project specification.
 """
 
 import sys
@@ -14,8 +14,8 @@ if str(backend_dir) not in sys.path:
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app import app  # noqa: E402
-from routes.health import health_check  # noqa: E402
+from main import app  # noqa: E402
+from routes import health_check  # noqa: E402
 
 
 def test_health_check_function_direct() -> None:
