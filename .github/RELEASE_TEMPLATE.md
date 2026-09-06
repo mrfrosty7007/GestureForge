@@ -28,4 +28,4 @@
 - @member3 (Machine Learning / Datasets Lead)
 - @member4 (Frontend / UI Lead)
 
-**Full Changelog**: https://github.com/your-org/GestureForge/compare/v0.0.0...v$VERSION
+**Full Changelog**: https://github.com/mrfrosty7007/GestureForge/compare/v0.0.0...v$VERSION

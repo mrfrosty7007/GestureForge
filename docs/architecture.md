@@ -1,7 +1,7 @@
 # 🏛️ GestureForge System Architecture
 
 ## 🎯 Purpose
-Defines the end-to-end technical architecture, component boundaries, data protocols, and sub-35ms latency budget for the GestureForge real-time gesture recognition engine.
+Defines the end-to-end technical architecture, component boundaries, data protocols, and target sub-35ms latency budget for the planned GestureForge real-time gesture recognition engine.
 
 ## 👤 Document Owner
 - **Primary Owner**: System Architect & Member 1 (Backend & API Gateway)
@@ -51,7 +51,7 @@ graph LR
 - **Role**:
   - Serves REST endpoints (`/health`, `/docs`).
   - Implements CORS middleware allowing cross-origin requests from the React dev server (`http://localhost:5173`).
-  - Provides structured logging and WebSocket gateway for streaming bidirectional frame/telemetry packets with sub-30ms latency.
+  - Provides structured logging and planned WebSocket gateway for streaming bidirectional frame/telemetry packets with target sub-30ms latency.
 
 ### 3. Perception & Computer Vision (`backend/gesture.py`)
 - **Technology**: Google MediaPipe, OpenCV (cv2).

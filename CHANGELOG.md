@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.1.0] - 2026-09-07 — Phase 0 Complete
+## [0.1.0] - 2026-09-07 — Phase 0 Foundation Complete
 
 Initial release establishing the production-grade foundation, architectural contracts, and development tooling for GestureForge.
 

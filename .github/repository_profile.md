@@ -1,6 +1,6 @@
 # 📋 GestureForge GitHub Repository Profile & Settings Checklist
 
-This checklist documents the recommended GitHub configuration settings to optimize GestureForge as a flagship public repository for university club selection and portfolio presentation.
+This checklist documents the exact GitHub configuration settings to optimize GestureForge as the flagship public repository on **@mrfrosty7007**'s GitHub profile.
 
 ---
 
@@ -11,7 +11,7 @@ Configure via the **"About"** section (gear icon on the right sidebar of the rep
 - **Description**:
   > Real-time AI-powered hand gesture recognition system built with MediaPipe, FastAPI, and React.
 - **Website**:
-  > `http://localhost:5173` *(or production deployment URL once hosted)*
+  > `https://github.com/mrfrosty7007/GestureForge`
 - **Include in home page**:
   - [x] Releases
   - [x] Packages
@@ -27,42 +27,43 @@ Paste the following comma-separated tags into the **Topics** field:
 computer-vision, gesture-recognition, mediapipe, fastapi, react, opencv, machine-learning, hackathon
 ```
 
-| Topic | Purpose |
-|:---|:---|
-| `computer-vision` | Categorizes repo under CV exploration |
-| `gesture-recognition` | Core project domain identifier |
-| `mediapipe` | Primary perception engine keyword |
-| `fastapi` | Modern asynchronous Python backend framework |
-| `react` | Modern frontend reactive HUD |
-| `opencv` | Frame ingestion and computer vision processing |
-| `machine-learning` | Landmark classification keyword |
-| `hackathon` | Highlights hackathon/club team engineering |
+- `computer-vision`
+- `gesture-recognition`
+- `mediapipe`
+- `fastapi`
+- `react`
+- `opencv`
+- `machine-learning`
+- `hackathon`
 
 ---
 
-## 👁️ 3. Repository Visibility & Pinned Recommendation
+## 📌 3. Pinned Repository Recommendations
 
-- **Visibility**: **Public** (Ensure all reviewers and university club committee members can view without authentication).
-- **Suggested Pinned Repository**:
-  - In your GitHub Profile (**Customize your pins**):
-  - **Unpin**: `abode-adobe_but_free-`
-  - **Pin**: `GestureForge` as **Pin #1 (Top Flagship Position)**
+On your public GitHub profile (`https://github.com/mrfrosty7007`), click **"Customize your pins"** and set the top 6 repositories in this exact recommended order:
+
+1. 🥇 **`GestureForge`** (Flagship Project — Real-Time AI Gesture Recognition)
+2. 🥈 **`RazorRC`**
+3. 🥉 **`CodeLens-AI`**
+4. 4️⃣ **`LoseRAR`**
+5. 5️⃣ **`3D-Reconstruction`**
+6. 6️⃣ **`EK_PASS`**
 
 ---
 
 ## 🖼️ 4. Social Preview Card
 
-- **Settings -> General -> Features -> Social preview**:
-- Upload the social preview banner specified in [`assets/social_preview.md`](../assets/social_preview.md).
-- Preview vector placeholder available at [`assets/logo_placeholder.svg`](../assets/logo_placeholder.svg).
+- Navigate to **Settings -> General -> Social preview**.
+- Upload the social preview graphic specified in [`assets/social_preview.md`](../assets/social_preview.md).
+- Preview placeholder logo asset available at [`assets/logo_placeholder.svg`](../assets/logo_placeholder.svg).
 
 ---
 
-## ⚙️ 5. GitHub Repository Features & Tabs
+## ⚙️ 5. Repository Features Configuration
 
 - [x] **Issues**: Enabled (using templates in `.github/ISSUE_TEMPLATE/`)
 - [x] **Pull Requests**: Enabled (using `.github/PULL_REQUEST_TEMPLATE.md`)
-- [x] **Actions**: Enabled (workflow active at `.github/workflows/ci.yml`)
-- [x] **Discussions**: Enabled (optional for community / team Q&A)
-- [ ] **Wikis**: Disabled (all documentation is centralized in version-controlled `docs/`)
-- [x] **Projects**: Enabled (for Kanban task tracking)
+- [x] **Actions**: Enabled (CI workflow at `.github/workflows/ci.yml`)
+- [x] **Discussions**: Enabled
+- [ ] **Wikis**: Disabled (documentation is version-controlled in `docs/`)
+- [x] **Projects**: Enabled

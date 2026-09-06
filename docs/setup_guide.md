@@ -24,7 +24,7 @@ Provides complete, reproducible development environment setup instructions for W
 ### Step 1.1: Clone and sync Python dependencies
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/GestureForge.git
+git clone https://github.com/mrfrosty7007/GestureForge.git
 cd GestureForge
 
 # Modern one-step virtual environment and lockfile sync
@@ -43,6 +43,7 @@ cp backend/.env.example backend/.env
 
 ### Step 1.3: Start the backend server
 ```bash
+cd backend
 uv run uvicorn app:app --reload
 ```
 - API Base URL: `http://127.0.0.1:8000`
