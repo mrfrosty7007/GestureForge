@@ -1,14 +1,25 @@
-# GestureForge ⚡
-> **Real-Time AI-Powered Hand Gesture Recognition Engine**
+<p align="center">
+  <img src="assets/logo_placeholder.svg" alt="GestureForge Logo Banner" width="100%" />
+</p>
 
-![CI Status](https://img.shields.io/badge/CI-Passing-10b981?style=for-the-badge&logo=githubactions&logoColor=white)
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776ab?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![React](https://img.shields.io/badge/React-18+-61dafb?style=for-the-badge&logo=react&logoColor=black)
-![Vite](https://img.shields.io/badge/Vite-6+-646cff?style=for-the-badge&logo=vite&logoColor=white)
-![Ruff](https://img.shields.io/badge/Linter-Ruff-orange?style=for-the-badge&logo=ruff&logoColor=white)
-![Black](https://img.shields.io/badge/Formatted%20with-Black-000000?style=for-the-badge&logo=python&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)
+<h1 align="center">GestureForge</h1>
+
+<p align="center">
+  <strong>Real-time AI-powered Hand Gesture Recognition using MediaPipe, FastAPI, and React.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/your-org/GestureForge/actions"><img src="https://img.shields.io/badge/CI-Passing-10b981?style=for-the-badge&logo=githubactions&logoColor=white" alt="CI Status" /></a>
+  <img src="https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776ab?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/React-18+-61dafb?style=for-the-badge&logo=react&logoColor=black" alt="React" />
+  <img src="https://img.shields.io/badge/Vite-6+-646cff?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/OpenCV-4.10+-5C3EE8?style=for-the-badge&logo=opencv&logoColor=white" alt="OpenCV" />
+  <img src="https://img.shields.io/badge/MediaPipe-0.10+-00C0FF?style=for-the-badge&logo=google&logoColor=white" alt="MediaPipe" />
+  <img src="https://img.shields.io/badge/Linter-Ruff-orange?style=for-the-badge&logo=ruff&logoColor=white" alt="Ruff" />
+  <img src="https://img.shields.io/badge/Code%20Style-Black-000000?style=for-the-badge&logo=python&logoColor=white" alt="Black" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License" /></a>
+</p>
 
 ---
 
@@ -16,11 +27,11 @@
 
 Touchless human-computer interaction (HCI) is critical in modern digital environments—from sterile operating rooms and VR gaming to accessibility tools for motor-impaired individuals.
 
-Traditional systems either rely on expensive, proprietary sensor hardware (e.g. depth cameras) or suffer from high latency and monolithic architectures. **GestureForge** solves this with an open, modular pipeline: capturing standard consumer webcam feeds, extracting 21 3D hand keypoints via Google MediaPipe, classifying gestures in sub-millisecond time via Scikit-learn, and streaming real-time telemetry into a cyberpunk React HUD.
+Traditional systems either rely on expensive, proprietary sensor hardware (such as specialized depth cameras) or suffer from high network latency and monolithic architectures. **GestureForge** solves this through an open, modular pipeline: capturing consumer webcam feeds, extracting 21 3D hand keypoints via Google MediaPipe, classifying gestures in sub-millisecond time via Scikit-learn, and streaming real-time telemetry into a cyberpunk React HUD.
 
 ---
 
-## ✨ Planned Features
+## ✨ Features
 
 - 🖐️ **21 3D Hand Landmark Tracking**: Sub-millimeter keypoint extraction using Google MediaPipe.
 - ⚡ **Sub-35ms Latency Budget**: High-throughput asynchronous streaming between browser and backend.
@@ -51,7 +62,7 @@ graph LR
 Get GestureForge up and running locally in seconds:
 
 ```bash
-# 1. Clone repo & sync Python environment (using uv)
+# 1. Clone repo & sync Python environment (via uv)
 git clone https://github.com/your-org/GestureForge.git && cd GestureForge && uv sync
 
 # 2. Start the FastAPI Backend Gateway
@@ -84,15 +95,30 @@ GestureForge separates responsibilities so 4 engineers can ship features simulta
 
 ---
 
+## 🗺️ Project Roadmap
+
+| Phase | Milestone | Deliverables | Status |
+|:---|:---|:---|:---|
+| **Phase 0 & 0.5** | **Foundation, Tooling & Polish** | FastAPI `/health`, React HUD, uv, Ruff, Black, CI/CD, documentation | **Completed** ✅ |
+| **Phase 1** | **Perception & Frame Ingestion** | Webcam feed, WebSocket stream, MediaPipe 21 hand landmarks | *Next Up* 🚀 |
+| **Phase 2** | **ML Classification Engine** | 8-gesture dataset, coordinate normalization, Scikit-learn classifier | *Planned* 🧠 |
+| **Phase 3** | **Polishing, HUD & Presentation** | Interactive telemetry overlay, sound cues, showcase presentation | *Planned* 🎨 |
+
+> 🗺️ **Milestones**: Detailed breakdown available in [`docs/roadmap.md`](docs/roadmap.md).
+
+---
+
 ## 📚 Detailed Documentation
 
-Comprehensive specifications have been moved into dedicated documents:
+Comprehensive specifications are organized into dedicated documents:
 
 - 🏛️ [**System Architecture & Data Flow**](docs/architecture.md) — Technical component breakdown & latency budgets.
 - 🛠️ [**Setup & Installation Guide**](docs/setup_guide.md) — Detailed instructions for Windows, macOS, and Linux with `uv`.
 - 👥 [**Team Roles & Branching Guide**](docs/team_roles.md) — 4-member responsibility matrix and Git workflow.
 - 🗺️ [**Development Roadmap**](docs/roadmap.md) — 4-phase agile milestones and deliverable criteria.
 - 📊 [**Dataset Taxonomy & Schema**](dataset/README.md) — 8-class gesture catalog and landmark normalization formulas.
+- 📋 [**Project Changelog**](CHANGELOG.md) — Historical release and milestone notes.
+- 🎨 [**Social Preview Specs**](assets/social_preview.md) — OpenGraph banner guidelines and color tokens.
 
 ---
 
