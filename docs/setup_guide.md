@@ -1,101 +1,133 @@
 # 🛠️ GestureForge Setup & Installation Guide
 
-This guide walks through configuring the development environment on Windows, macOS, and Linux.
+## 🎯 Purpose
+Provides complete, reproducible development environment setup instructions for Windows, macOS, and Linux, featuring modern dependency management with `uv` and `pnpm`.
+
+## 👤 Document Owner
+- **Primary Owner**: Member 1 (Backend, DevOps & CI/CD)
+- **Collaborators**: All Team Members
 
 ---
 
 ## 📋 System Prerequisites
 
-- **Python**: 3.10, 3.11, or 3.12 (`python --version`)
-- **Node.js**: 18.x, 20.x, or 22.x (`node --version`)
+- **Python**: 3.11 or 3.12 (`python --version`)
+- **Node.js**: 20.x or 22.x (`node --version`)
+- **Package Managers**: `uv` (recommended for Python) & `pnpm` / `npm` (for Node.js)
 - **Git**: 2.30+ (`git --version`)
-- **Hardware**: Working webcam / integrated camera for future Phase 1 testing.
+- **Hardware**: Working webcam / integrated camera for upcoming Phase 1 testing.
 
 ---
 
-## 🐍 1. Backend Setup
+## ⚡ 1. Modern Fast Setup (Recommended via `uv`)
 
-### Step 1.1: Navigate into backend directory
+### Step 1.1: Clone and sync Python dependencies
+```bash
+# Clone the repository
+git clone https://github.com/your-org/GestureForge.git
+cd GestureForge
+
+# Modern one-step virtual environment and lockfile sync
+uv sync
+```
+
+### Step 1.2: Configure environment variables
+```bash
+# Copy backend environment template (never commit real .env!)
+# Windows PowerShell:
+Copy-Item backend/.env.example backend/.env
+
+# macOS / Linux:
+cp backend/.env.example backend/.env
+```
+
+### Step 1.3: Start the backend server
+```bash
+uv run uvicorn app:app --reload
+```
+- API Base URL: `http://127.0.0.1:8000`
+- Health Endpoint: `http://127.0.0.1:8000/health`
+- OpenAPI Swagger Docs: `http://127.0.0.1:8000/docs`
+
+---
+
+## 🐍 2. Legacy Setup (pip + venv fallback)
+
+If `uv` is not installed on your machine:
+
 ```bash
 cd backend
-```
+python -m venv .venv
 
-### Step 1.2: Create and activate a virtual environment
-- **Windows (PowerShell)**:
-  ```powershell
-  python -m venv .venv
-  .venv\Scripts\Activate.ps1
-  ```
-- **macOS / Linux**:
-  ```bash
-  python3 -m venv .venv
-  source .venv/bin/activate
-  ```
+# On Windows:
+.venv\Scripts\Activate.ps1
+# On macOS/Linux:
+source .venv/bin/activate
 
-### Step 1.3: Install backend dependencies
-```bash
-pip install --upgrade pip
 pip install -r requirements.txt
-```
-
-### Step 1.4: Configure environment variables
-```bash
-# Windows PowerShell:
-Copy-Item .env.example .env
-
-# macOS / Linux:
 cp .env.example .env
-```
-
-### Step 1.5: Start the backend server
-```bash
 uvicorn app:app --reload
 ```
-The API will be live at: **`http://127.0.0.1:8000`**
-- Health Check: `http://127.0.0.1:8000/health`
-- Swagger Docs: `http://127.0.0.1:8000/docs`
 
 ---
 
-## ⚛️ 2. Frontend Setup
+## ⚛️ 3. Frontend Setup
 
-### Step 2.1: Open a second terminal and navigate to frontend directory
+In a new terminal window:
+
 ```bash
 cd frontend
-```
 
-### Step 2.2: Install dependencies
-```bash
-npm install
-```
+# Install dependencies (pnpm recommended; npm also supported)
+pnpm install
+# or: npm install
 
-### Step 2.3: Configure environment variables
-```bash
+# Configure environment variables
 # Windows PowerShell:
 Copy-Item .env.example .env
-
 # macOS / Linux:
 cp .env.example .env
-```
 
-### Step 2.4: Start the Vite development server
-```bash
-npm run dev
+# Start the Vite development server
+pnpm run dev
+# or: npm run dev
 ```
-Open your browser and navigate to **`http://localhost:5173`**.
+Open your browser at **`http://localhost:5173`**.
 
 ---
 
-## 🧪 3. Running Verification & Tests
+## 🧪 4. Running Verification & Quality Checks
 
-### Backend Unit Tests
+### Backend Quality Suite (Ruff, Black, Pytest)
 ```bash
-# From the project root or backend directory:
-pytest backend/tests
+# Run Ruff linter
+uv run ruff check .
+
+# Run Black code formatting check
+uv run black --check backend
+
+# Run automated tests
+uv run pytest backend/tests
 ```
 
-### Frontend Production Build
+### Frontend Quality Suite (ESLint, Prettier, Vite Build)
 ```bash
-# From frontend directory:
-npm run build
+cd frontend
+
+# Check code formatting
+pnpm run format
+
+# Run ESLint static analysis
+pnpm run lint
+
+# Compile production distribution bundle
+pnpm run build
 ```
+
+---
+
+## 🔄 Phase 1 Handoff
+Before beginning Phase 1:
+1. Ensure both `uv run pytest backend/tests` and `pnpm run build` execute with zero warnings or errors on your machine.
+2. Confirm browser access to `http://localhost:5173` displays `Backend Gateway Connectivity: online` with active latency measurements.
+3. Grant camera permissions in your web browser for `localhost:5173` in preparation for Phase 1 webcam stream integration.

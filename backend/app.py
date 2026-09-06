@@ -1,17 +1,48 @@
 """GestureForge Backend Application Entry Point.
 
-This module sets up the FastAPI application, mounts CORS middleware to allow
-cross-origin communication from the React frontend, and registers API routers.
+This module sets up the FastAPI application with structured logging,
+CORS middleware for cross-origin communication with the React frontend,
+and registers core API routers.
 
 Development Execution:
     uvicorn app:app --reload --host 127.0.0.1 --port 8000
+    or using uv:
+    uv run uvicorn app:app --reload
 """
 
-from fastapi import FastAPI
+import logging
+import sys
+import time
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 import config
 from routes.health import router as health_router
+
+# ----------------------------------------------------------------------
+# Structured Logging Configuration
+# ----------------------------------------------------------------------
+log_format = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+logging.basicConfig(
+    level=getattr(logging, config.LOG_LEVEL.upper(), logging.INFO),
+    format=log_format,
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("gestureforge.gateway")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifecycle events for startup and shutdown logging."""
+    logger.info("Initializing %s (%s)", config.SERVICE_NAME, config.API_VERSION)
+    logger.info("Server bound to %s:%s", config.HOST, config.PORT)
+    logger.info("Active CORS Origins: %s", config.CORS_ORIGINS)
+    yield
+    logger.info("Shutting down %s", config.SERVICE_NAME)
+
 
 # Initialize FastAPI Application
 app = FastAPI(
@@ -20,17 +51,34 @@ app = FastAPI(
     version=config.API_VERSION,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Configure Cross-Origin Resource Sharing (CORS)
-# Ensures the React + Vite frontend can communicate without browser blocking
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Structured request logging middleware."""
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    process_time_ms = round((time.perf_counter() - start_time) * 1000, 2)
+    logger.info(
+        "%s %s -> %s (%sms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        process_time_ms,
+    )
+    return response
+
 
 # Register Core Routers
 app.include_router(health_router)
@@ -66,4 +114,10 @@ def root_status() -> dict:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("app:app", host=config.HOST, port=config.PORT, reload=config.DEBUG)
+    uvicorn.run(
+        "app:app",
+        host=config.HOST,
+        port=config.PORT,
+        reload=config.DEBUG,
+        log_level=config.LOG_LEVEL.lower(),
+    )

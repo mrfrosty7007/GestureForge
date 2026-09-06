@@ -16,14 +16,14 @@ In Phase 2, Member 3 will:
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+
 import numpy as np
 
 # Directory for serialized model weights
 MODELS_DIR = Path(__file__).resolve().parent
 
 # Target Gesture Taxonomy for GestureForge
-TARGET_GESTURES: List[str] = [
+TARGET_GESTURES: list[str] = [
     "Thumbs Up",
     "Thumbs Down",
     "Peace / Victory",
@@ -42,14 +42,14 @@ class GestureClassifier:
     and predicts the corresponding gesture label and probability.
     """
 
-    def __init__(self, model_path: Optional[Union[str, Path]] = None) -> None:
+    def __init__(self, model_path: str | Path | None = None) -> None:
         self.model_path = (
             Path(model_path)
             if model_path
             else (MODELS_DIR / "gesture_classifier.joblib")
         )
         self.model = None
-        self.classes: List[str] = TARGET_GESTURES
+        self.classes: list[str] = TARGET_GESTURES
         self._is_loaded = False
 
     def load_model(self) -> bool:
@@ -63,7 +63,7 @@ class GestureClassifier:
         return False
 
     def preprocess_landmarks(
-        self, raw_landmarks: List[Tuple[float, float, float]]
+        self, raw_landmarks: list[tuple[float, float, float]]
     ) -> np.ndarray:
         """Flatten and normalize 21 (x, y, z) coordinates relative to wrist anchor."""
         # Phase 2 implementation:
@@ -72,7 +72,7 @@ class GestureClassifier:
         # 3. Return flattened 1D array of length 63
         return np.zeros((63,), dtype=np.float32)
 
-    def predict(self, feature_vector: np.ndarray) -> Dict[str, Union[str, float]]:
+    def predict(self, feature_vector: np.ndarray) -> dict[str, str | float]:
         """Run inference on landmark feature vector.
 
         Returns:

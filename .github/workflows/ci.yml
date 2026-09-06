@@ -8,45 +8,44 @@ on:
 
 jobs:
   backend-ci:
-    name: Backend Validation
+    name: Backend Validation (uv + Python)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./backend
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv package manager
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.11"
-          cache: "pip"
+          version: "latest"
+          enable-cache: true
 
-      - name: Install backend dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: Set up Python
+        run: uv python install 3.11
 
-      - name: Run code syntax verification
-        run: |
-          python -m py_compile app.py config.py gesture.py routes/health.py
+      - name: Sync dependencies from uv.lock
+        run: uv sync
+
+      - name: Run Ruff Linter
+        run: uv run ruff check .
+
+      - name: Run Black Code Formatting Check
+        run: uv run black --check backend
 
       - name: Run Backend Pytest Suite
-        run: |
-          python -m pytest tests/
+        run: uv run pytest backend/tests
 
-      - name: Verify FastAPI server startup & health check
+      - name: Verify FastAPI Server Startup & Health Check
         run: |
-          python -m uvicorn app:app --host 127.0.0.1 --port 8000 &
+          uv run uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000 &
           SERVER_PID=$!
           sleep 4
           curl --fail --retry 3 --retry-delay 2 http://127.0.0.1:8000/health || (kill $SERVER_PID && exit 1)
           kill $SERVER_PID
 
   frontend-ci:
-    name: Frontend Validation
+    name: Frontend Validation (Node.js + Vite)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -56,15 +55,26 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package.json
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
-      - name: Install frontend dependencies
-        run: npm install
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Build frontend distribution bundle
-        run: npm run build
+      - name: Check code style with Prettier
+        run: pnpm run format -- --check
+
+      - name: Run ESLint
+        run: pnpm run lint
+
+      - name: Build frontend production bundle
+        run: pnpm run build

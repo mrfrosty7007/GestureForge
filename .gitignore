@@ -5,8 +5,8 @@
 
 # Environment Variables
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 *.env
 
 # Python & Virtual Environments

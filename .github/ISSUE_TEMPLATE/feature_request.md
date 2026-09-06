@@ -1,26 +1,36 @@
 ---
 name: Feature Request
-about: Suggest an idea or architectural improvement for GestureForge
+about: Propose an idea, architectural enhancement, or Phase feature for GestureForge
 title: "[FEATURE] <concise description>"
 labels: ["enhancement"]
 assignees: ""
 ---
 
 ### 💡 Feature Overview
-A clear and concise description of what feature is proposed.
+A clear and concise description of what feature is proposed and its user value.
 
-### ❓ Problem Solved
-Is your feature request related to a problem? Ex. I'm always frustrated when [...]
+---
 
-### 🛠️ Proposed Solution
-A clear description of how this should work and what interface it exposes.
+### ❓ Problem Solved & Context
+What limitation or workflow need does this address? (e.g. "WebSocket reconnection drops frames upon network stutter", "Need gesture macro mapping for Spotify controls")
 
-### 👥 Team Member Ownership
-- [ ] Member 1: Backend & API Gateway
-- [ ] Member 2: Computer Vision & MediaPipe Pipeline
-- [ ] Member 3: ML Model & Dataset Curation
-- [ ] Member 4: Frontend UI & HUD Experience
+---
 
-### 📋 Acceptance Criteria
-- [ ] Criteria 1
-- [ ] Criteria 2
+### 🛠️ Proposed Implementation
+A high-level technical proposal of how this should work, which interfaces it modifies, and data formats exchanged.
+
+---
+
+### 👥 Module Ownership & Team Allocation
+- [ ] Member 1: Backend Gateway & WebSocket
+- [ ] Member 2: Computer Vision & MediaPipe Hands
+- [ ] Member 3: ML Model & Dataset Training
+- [ ] Member 4: Frontend React UI & HUD Experience
+- [ ] Shared / Multi-member
+
+---
+
+### 📋 Acceptance Criteria & Definition of Done
+- [ ] Unit / integration tests added covering new functionality
+- [ ] Linting & code formatters pass (`ruff`, `black`, `eslint`)
+- [ ] Documentation updated in `docs/` or `README.md`

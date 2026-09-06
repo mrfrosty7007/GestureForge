@@ -1,6 +1,71 @@
+[project]
+name = "gestureforge"
+version = "0.1.0"
+description = "Real-Time AI-Powered Hand Gesture Recognition Engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "mediapipe>=0.10.14",
+    "opencv-python>=4.10.0.84",
+    "numpy>=1.26.0",
+    "scikit-learn>=1.5.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "python-dotenv>=1.0.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+    "black>=24.0.0",
+    "ruff>=0.9.0",
+]
+
+# ----------------------------------------------------------------------
+# Ruff Linter & Formatter Configuration (Primary Linter)
+# ----------------------------------------------------------------------
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+src = ["backend"]
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "node_modules",
+    "dist",
+    "build",
+    "__pycache__",
+    ".pytest_cache",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # Pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "UP",    # pyupgrade
+    "SIM",   # flake8-simplify
+]
+ignore = [
+    "E501",  # Line length handled by formatter
+    "B008",  # Do not perform function calls in argument defaults (FastAPI Depends)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "routes", "models", "gesture", "app"]
+
+# ----------------------------------------------------------------------
+# Black Formatter Configuration
+# ----------------------------------------------------------------------
 [tool.black]
 line-length = 88
-target-version = ['py310', 'py311', 'py312']
+target-version = ['py311']
 include = '\.pyi?$'
 exclude = '''
 /(
@@ -10,15 +75,13 @@ exclude = '''
   | build
   | dist
   | node_modules
+  | \.pytest_cache
 )/
 '''
 
-[tool.isort]
-profile = "black"
-line_length = 88
-multi_line_output = 3
-include_trailing_comma = true
-
+# ----------------------------------------------------------------------
+# Pytest Configuration
+# ----------------------------------------------------------------------
 [tool.pytest.ini_options]
 minversion = "7.0"
 addopts = "-ra -q"
@@ -27,4 +90,8 @@ testpaths = [
 ]
 pythonpath = [
     "backend"
+]
+filterwarnings = [
+    "ignore::starlette.testclient.StarletteDeprecationWarning",
+    "ignore::DeprecationWarning",
 ]

@@ -2,18 +2,22 @@ import { Camera, Crosshair } from 'lucide-react';
 
 export default function CameraPlaceholder() {
   return (
-    <div className="glass-panel camera-card">
+    <section
+      className="glass-panel camera-card"
+      role="region"
+      aria-label="Camera perception viewport placeholder"
+    >
       <div className="camera-header">
         <div className="camera-title-group">
           <h3>Perception Viewport</h3>
         </div>
-        <span className="camera-tag">
-          <Crosshair size={13} />
+        <span className="camera-tag" aria-label="HUD status: Standby">
+          <Crosshair size={13} aria-hidden="true" />
           HUD Standby
         </span>
       </div>
 
-      <div className="camera-viewfinder">
+      <div className="camera-viewfinder" aria-hidden="true">
         {/* HUD Corner Reticles */}
         <div className="hud-corner top-left"></div>
         <div className="hud-corner top-right"></div>
@@ -26,7 +30,7 @@ export default function CameraPlaceholder() {
 
         {/* Viewfinder Content Container */}
         <div className="viewfinder-content">
-          <div className="viewfinder-icon-wrap">
+          <div className="viewfinder-icon-wrap" aria-hidden="true">
             <Camera size={30} />
           </div>
           <div className="viewfinder-label">Live Camera (Coming Soon)</div>
@@ -35,13 +39,13 @@ export default function CameraPlaceholder() {
             <strong style={{ color: '#38bdf8' }}>Phase 1</strong> via Google MediaPipe.
           </p>
 
-          <div className="phase-checklist">
+          <div className="phase-checklist" aria-label="Phase 1 capability readiness">
             <span className="phase-item">WebRTC Stream [Ready]</span>
             <span className="phase-item">MediaPipe Hands [Pending P1]</span>
             <span className="phase-item">60 FPS Target</span>
           </div>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

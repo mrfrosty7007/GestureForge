@@ -5,6 +5,7 @@ and responsive to incoming client requests.
 """
 
 from fastapi import APIRouter
+
 from config import SERVICE_NAME
 
 router = APIRouter(tags=["Health"])

@@ -14,8 +14,8 @@ In Phase 1, Member 2 will:
 5. Forward normalized feature vectors to Member 3's ML Classifier (models/gesture_model.py)
 """
 
-from typing import Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass
@@ -33,7 +33,7 @@ class HandDetectionResult:
     """Container for detected hand landmarks and metadata."""
 
     handedness: str = "Unknown"  # "Left" | "Right" | "Unknown"
-    landmarks: List[NormalizedLandmark] = field(default_factory=list)
+    landmarks: list[NormalizedLandmark] = field(default_factory=list)
     confidence: float = 0.0
 
 
@@ -80,7 +80,7 @@ class HandGestureRecognizer:
         self._is_initialized = True
         return True
 
-    def extract_landmarks(self, frame: Any) -> List[HandDetectionResult]:
+    def extract_landmarks(self, frame: Any) -> list[HandDetectionResult]:
         """Extract 21 hand landmarks from an input image/video frame.
 
         Args:
@@ -95,7 +95,7 @@ class HandGestureRecognizer:
         # 3. Parse: results.multi_hand_landmarks and results.multi_handedness
         return []
 
-    def draw_landmarks(self, frame: Any, landmarks: List[HandDetectionResult]) -> Any:
+    def draw_landmarks(self, frame: Any, landmarks: list[HandDetectionResult]) -> Any:
         """Draw visual skeleton and landmark joints onto frame for debugging."""
         # Phase 1 implementation:
         # Use mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)

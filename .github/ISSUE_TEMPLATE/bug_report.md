@@ -1,38 +1,50 @@
 ---
 name: Bug Report
-about: Create a report to help us improve GestureForge
-title: "[BUG] <concise description>"
+about: Create a structured report to help debug and fix an issue in GestureForge
+title: "[BUG] <concise summary>"
 labels: ["bug"]
 assignees: ""
 ---
 
 ### 🐛 Bug Description
-A clear and concise description of what the bug is.
+A clear and concise description of the defect encountered.
 
-### 🔁 Steps to Reproduce
-1. Start backend with `uvicorn app:app --reload`
-2. Start frontend with `npm run dev`
-3. Navigate to `http://localhost:5173`
-4. See error
+---
+
+### 🔁 Exact Steps to Reproduce
+1. **Pre-conditions**: (e.g. clean virtual environment, Node dependencies installed)
+2. **Terminal 1 (Backend)**: Run `uv run uvicorn app:app --reload`
+3. **Terminal 2 (Frontend)**: Run `pnpm run dev` or `npm run dev`
+4. **Action**: Open browser at `http://localhost:5173` and click [...]
+5. **Observed Error**: (e.g. status card shows offline, console shows error 500)
+
+---
 
 ### 🎯 Expected Behavior
-A clear and concise description of what you expected to happen.
+A clear description of what should have occurred under nominal conditions.
 
-### 💻 Environment Details
-- **OS**: Windows / macOS / Linux
-- **Python Version**: e.g., 3.11.x / 3.12.x
-- **Node Version**: e.g., 20.x / 22.x
-- **Browser**: Chrome / Firefox / Safari / Edge
+---
 
-### 📸 Screenshots / Logs
-If applicable, add screenshots or console output to help explain your problem.
-
+### 🔍 Error Logs & Stack Trace
 ```log
-Paste logs or stack traces here
+# Paste full terminal traceback, browser DevTools console output, or network response here:
+
 ```
 
-### 👥 Module Affected
-- [ ] Backend API
-- [ ] MediaPipe / Gesture Recognition
-- [ ] Scikit-learn Classifier
-- [ ] React Frontend
+---
+
+### 💻 System & Runtime Environment
+- **Operating System**: Windows 11 / macOS Sequoia / Ubuntu 22.04
+- **Python Version**: `python --version` (e.g., Python 3.11.x)
+- **Node.js Version**: `node --version` (e.g., v20.x / v22.x)
+- **Package Manager Used**: `uv` / `pip` / `pnpm` / `npm`
+- **Browser**: Chrome / Firefox / Safari / Edge (with version)
+
+---
+
+### 👥 Module & Team Ownership
+- [ ] Backend & Gateway (Member 1)
+- [ ] Computer Vision & MediaPipe (Member 2)
+- [ ] ML Model & Datasets (Member 3)
+- [ ] Frontend UI & HUD (Member 4)
+- [ ] CI/CD & Tooling
