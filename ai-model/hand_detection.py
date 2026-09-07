@@ -139,7 +139,9 @@ def run_hand_detection():
                         )
 
                         # 2. Classify gesture using geometric landmark rules
-                        gesture, confidence = classifier.classify(hand_landmarks)
+                        gesture, confidence = classifier.classify(
+                            hand_landmarks, hand_id=hand_idx
+                        )
 
                         # Track primary hand gesture for main HUD overlay and backend streaming
                         if hand_idx == 0:

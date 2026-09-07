@@ -8,6 +8,9 @@ into one of five supported gestures:
 - Thumbs Up
 - One Finger
 - Peace
+
+Includes orientation-aware vector angle calculation for robust thumb detection
+and temporal hysteresis smoothing to eliminate frame-to-frame jitter.
 """
 
 import math
@@ -17,7 +20,7 @@ from typing import Any
 class GestureClassifier:
     """Classifies 21 MediaPipe hand landmarks into discrete gesture classes
 
-    using geometric heuristic rules.
+    using geometric heuristic rules with temporal hysteresis smoothing.
     """
 
     # MediaPipe Hands landmark indices
@@ -47,25 +50,60 @@ class GestureClassifier:
     PINKY_DIP = 19
     PINKY_TIP = 20
 
+    def __init__(self, hysteresis_frames: int = 2) -> None:
+        """Initializes the classifier with configurable hysteresis threshold.
+
+        Args:
+            hysteresis_frames: Number of consecutive frames a gesture must be
+                consistently observed before replacing the currently active gesture.
+                Defaults to 2 frames.
+        """
+        self.hysteresis_frames = hysteresis_frames
+        # State tracking per hand ID: {hand_id: state_dict}
+        self._states: dict[int, dict[str, Any]] = {}
+
     @staticmethod
     def _distance(p1: Any, p2: Any) -> float:
         """Computes Euclidean distance between two 3D landmarks."""
-        return math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2)
+        z1 = getattr(p1, "z", 0.0)
+        z2 = getattr(p2, "z", 0.0)
+        return math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (z1 - z2) ** 2)
+
+    @staticmethod
+    def _compute_angle(v1: tuple[float, ...], v2: tuple[float, ...]) -> float:
+        """Computes the angle in degrees between two 2D or 3D vectors."""
+        dot = sum(a * b for a, b in zip(v1, v2, strict=True))
+        norm1 = math.sqrt(sum(a * a for a in v1))
+        norm2 = math.sqrt(sum(b * b for b in v2))
+        if norm1 == 0.0 or norm2 == 0.0:
+            return 180.0
+        cos_val = max(-1.0, min(1.0, dot / (norm1 * norm2)))
+        return math.degrees(math.acos(cos_val))
+
+    def reset(self, hand_id: int | None = None) -> None:
+        """Resets the temporal hysteresis state."""
+        if hand_id is None:
+            self._states.clear()
+        elif hand_id in self._states:
+            del self._states[hand_id]
 
     def get_finger_states(self, landmarks: list[Any]) -> dict[str, bool]:
         """Determines whether each finger is extended or folded.
 
         Landmark y-coordinates in MediaPipe run top-to-bottom (0.0 at top, 1.0 at bottom).
         For the four fingers (Index, Middle, Ring, Pinky), a finger is extended when
-        its tip y-coordinate is positioned above (lower numerical value than) both its
-        PIP joint and MCP knuckle.
+        its tip y-coordinate is positioned above both its PIP joint and MCP knuckle.
 
-        Thumb extension is evaluated in two ways:
-        1. Vertical extension (thumb pointing upwards, tip above IP and MCP joints).
-        2. Radial extension (thumb spread outward to the side, away from palm center).
+        Thumb extension is evaluated using:
+        1. Orientation-aware vector angle:
+           - Thumb direction vector: Thumb MCP (2) -> Thumb Tip (4)
+           - Palm direction vector: Wrist (0) -> Middle MCP (9)
+           - Evaluates whether the angle between vectors is <= 50.0 degrees and thumb tip
+             is elevated above Thumb MCP.
+        2. Radial extension: Thumb spread outward to the side, away from pinky knuckle.
 
         Args:
-            landmarks: List of 21 landmark objects with .x, .y, .z attributes.
+            landmarks: List of 21 landmark objects with .x, .y, and optional .z attributes.
 
         Returns:
             dict: Boolean state for each finger and thumb orientation.
@@ -88,11 +126,33 @@ class GestureClassifier:
             and landmarks[self.PINKY_TIP].y < landmarks[self.PINKY_MCP].y
         )
 
-        # Thumb vertical orientation (pointing upward)
-        thumb_pointing_up = (
-            landmarks[self.THUMB_TIP].y < landmarks[self.THUMB_IP].y
-            and landmarks[self.THUMB_TIP].y < landmarks[self.THUMB_MCP].y
+        # ---------------------------------------------------------------------
+        # Orientation-aware thumb detection
+        # ---------------------------------------------------------------------
+        p_wrist = landmarks[self.WRIST]
+        p_middle_mcp = landmarks[self.MIDDLE_MCP]
+        p_thumb_mcp = landmarks[self.THUMB_MCP]
+        p_thumb_tip = landmarks[self.THUMB_TIP]
+
+        # Palm direction vector: Wrist (0) -> Middle MCP (9)
+        palm_dir = (
+            p_middle_mcp.x - p_wrist.x,
+            p_middle_mcp.y - p_wrist.y,
+            getattr(p_middle_mcp, "z", 0.0) - getattr(p_wrist, "z", 0.0),
         )
+
+        # Thumb direction vector: Thumb MCP (2) -> Thumb Tip (4)
+        thumb_dir = (
+            p_thumb_tip.x - p_thumb_mcp.x,
+            p_thumb_tip.y - p_thumb_mcp.y,
+            getattr(p_thumb_tip, "z", 0.0) - getattr(p_thumb_mcp, "z", 0.0),
+        )
+
+        thumb_angle = self._compute_angle(palm_dir, thumb_dir)
+
+        # Thumb pointing up: vector aligned with palm direction (<= 50 deg)
+        # and thumb tip elevated above thumb MCP in camera view space
+        thumb_pointing_up = thumb_angle <= 50.0 and p_thumb_tip.y < p_thumb_mcp.y
 
         # Thumb radial extension (spread open sideways from palm)
         dist_thumb_tip_pinky = self._distance(
@@ -114,8 +174,8 @@ class GestureClassifier:
             "pinky": pinky_extended,
         }
 
-    def classify(self, landmarks: Any) -> tuple[str, str]:
-        """Classifies the hand gesture from MediaPipe hand landmarks.
+    def classify_raw(self, landmarks: Any) -> tuple[str, str]:
+        """Classifies the hand gesture from landmarks without temporal smoothing.
 
         Recognized gestures:
         - Palm: All five fingers extended.
@@ -129,7 +189,6 @@ class GestureClassifier:
 
         Returns:
             tuple[str, str]: (gesture_name, confidence_level)
-                e.g. ("Peace", "High"), ("Fist", "High"), ("Unknown", "Low")
         """
         # Extract landmark list if encapsulated inside MediaPipe container
         lm_list = landmarks.landmark if hasattr(landmarks, "landmark") else landmarks
@@ -192,3 +251,61 @@ class GestureClassifier:
             return "Fist", "High"
 
         return "Unknown", "Low"
+
+    def classify(self, landmarks: Any, hand_id: int = 0) -> tuple[str, str]:
+        """Classifies hand gesture with 2-consecutive-frame hysteresis smoothing.
+
+        A candidate gesture must remain valid for 2 consecutive frames before
+        replacing the currently displayed gesture, eliminating rapid single-frame
+        flickering.
+
+        Args:
+            landmarks: MediaPipe NormalizedLandmarkList or list of 21 landmark objects.
+            hand_id: Hand index for multi-hand independent hysteresis tracking.
+
+        Returns:
+            tuple[str, str]: (stabilized_gesture, stabilized_confidence)
+        """
+        raw_gesture, raw_confidence = self.classify_raw(landmarks)
+
+        if self.hysteresis_frames <= 1:
+            return raw_gesture, raw_confidence
+
+        if hand_id not in self._states:
+            self._states[hand_id] = {
+                "current_gesture": "None",
+                "current_confidence": "N/A",
+                "candidate_gesture": "None",
+                "candidate_confidence": "N/A",
+                "candidate_count": 0,
+            }
+
+        state = self._states[hand_id]
+        current_g = state["current_gesture"]
+
+        # Case 1: Same as current confirmed gesture
+        if raw_gesture == current_g:
+            state["candidate_gesture"] = raw_gesture
+            state["candidate_confidence"] = raw_confidence
+            state["candidate_count"] = 0
+            state["current_confidence"] = raw_confidence
+            return current_g, state["current_confidence"]
+
+        # Case 2: New candidate gesture observed
+        if raw_gesture == state["candidate_gesture"]:
+            state["candidate_count"] += 1
+            state["candidate_confidence"] = raw_confidence
+        else:
+            state["candidate_gesture"] = raw_gesture
+            state["candidate_confidence"] = raw_confidence
+            state["candidate_count"] = 1
+
+        # Check if candidate has persisted for required consecutive frames
+        if state["candidate_count"] >= self.hysteresis_frames:
+            state["current_gesture"] = state["candidate_gesture"]
+            state["current_confidence"] = state["candidate_confidence"]
+            state["candidate_count"] = 0
+            return state["current_gesture"], state["current_confidence"]
+
+        # Retain current confirmed gesture until candidate meets 2 consecutive frames
+        return state["current_gesture"], state["current_confidence"]
