@@ -52,22 +52,21 @@ feature/dev4-dataset   ──┘
 
 ## 🚀 Quick Start (Full Stack MVP)
 
-Run the 3 modules in separate terminals:
+Prerequisites: Install [`uv`](https://docs.astral.sh/uv/) and [`pnpm`](https://pnpm.io/).
+
+Initialize dependencies from the repository root:
+
+```bash
+uv sync
+pnpm --dir frontend install
+```
+
+Run the 3 services in separate terminals:
 
 ### 1. Backend Gateway (Terminal 1)
 
 ```bash
-cd backend
-python -m venv .venv
-
-# Windows
-.venv\Scripts\activate
-
-# macOS / Linux
-source .venv/bin/activate
-
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload
 ```
 
 - API Base: [http://127.0.0.1:8000](http://127.0.0.1:8000)
@@ -77,9 +76,7 @@ uvicorn main:app --reload --port 8000
 ### 2. Frontend Cyber Dashboard (Terminal 2)
 
 ```bash
-cd frontend
-pnpm install
-pnpm run dev
+pnpm --dir frontend dev
 ```
 
 - Cyber Operations HUD: [http://localhost:5173](http://localhost:5173)
@@ -87,12 +84,10 @@ pnpm run dev
 ### 3. Real-Time AI Camera Pipeline (Terminal 3)
 
 ```bash
-cd ai-model
-pip install -r requirements.txt
-python hand_detection.py
+python ai-model/hand_detection.py
 ```
 
-- Tracks 21 hand landmarks, classifies 5 gestures in real-time, and streams debounced telemetry to the FastAPI gateway.
+- Tracks 21 hand landmarks, classifies gestures in real-time, and streams debounced telemetry to the FastAPI gateway.
 - Press `Q` in the camera viewport to quit cleanly.
 
 ---

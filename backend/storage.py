@@ -6,11 +6,11 @@ external database dependencies (no Redis, no SQLite).
 
 import threading
 
-from .models import GesturePrediction
+from .models import GesturePrediction, HandGesture
 
 
 class GestureStorage:
-    """Thread-safe in-memory store holding only the latest gesture prediction."""
+    """Thread-safe in-memory store holding the latest multi-hand gesture prediction."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -25,6 +25,13 @@ class GestureStorage:
         """Retrieves the latest gesture prediction, or None if none has been recorded."""
         with self._lock:
             return self._latest_gesture
+
+    def get_latest_hands(self) -> list[HandGesture]:
+        """Retrieves the list of detected hands from the latest prediction."""
+        with self._lock:
+            if self._latest_gesture is not None:
+                return list(self._latest_gesture.hands)
+            return []
 
     def clear(self) -> None:
         """Resets the storage (useful during automated testing)."""

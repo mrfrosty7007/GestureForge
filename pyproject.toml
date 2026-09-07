@@ -11,6 +11,8 @@ dependencies = [
     "opencv-python>=4.10.0.84",
     "numpy>=1.26.0",
     "scikit-learn>=1.5.0",
+    "joblib>=1.4.0",
+    "requests>=2.31.0",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.2.0",
     "python-dotenv>=1.0.1",
@@ -90,7 +92,9 @@ testpaths = [
 ]
 pythonpath = [
     ".",
-    "backend"
+    "backend",
+    "ai-model",
+    "ai-model/scripts",
 ]
 filterwarnings = [
     "ignore::starlette.testclient.StarletteDeprecationWarning",

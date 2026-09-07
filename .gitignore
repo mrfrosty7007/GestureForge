@@ -7,3 +7,5 @@ dist/
 .vscode/
 Thumbs.db
 .DS_Store
+playwright-report/
+test-results/

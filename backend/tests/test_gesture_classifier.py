@@ -8,15 +8,7 @@ Validates:
 - Multi-hand independent smoothing
 """
 
-import sys
-from pathlib import Path
-
-# Ensure ai-model directory is in sys.path for importing gesture_classifier
-ai_model_dir = Path(__file__).resolve().parent.parent.parent / "ai-model"
-if str(ai_model_dir) not in sys.path:
-    sys.path.insert(0, str(ai_model_dir))
-
-from gesture_classifier import GestureClassifier  # noqa: E402
+from gesture_classifier import GestureClassifier
 
 
 class MockLandmark:

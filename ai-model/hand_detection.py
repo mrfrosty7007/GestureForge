@@ -3,15 +3,16 @@
 Tracks up to 2 hands in real-time, extracts 21 3D landmarks with skeletal
 connection lines, classifies hand poses into discrete gestures (Palm, Fist,
 Thumbs Up, One Finger, Peace) using geometric rules, and dispatches detected
-gestures to the GestureForge FastAPI backend with smart debouncing.
+multi-hand gestures to the GestureForge FastAPI backend with smart debouncing.
 
 Press 'Q' to quit cleanly.
 """
 
+import collections
 import sys
 import threading
 import time
-from datetime import UTC, datetime
+from typing import Any
 
 import cv2
 import mediapipe as mp
@@ -21,21 +22,49 @@ from gesture_classifier import GestureClassifier
 # Backend API Configuration
 BACKEND_URL = "http://127.0.0.1:8000/gesture"
 REQUEST_TIMEOUT_SEC = 0.5
-DEBOUNCE_COOLDOWN_SEC = 1.0
-VALID_GESTURES = {"Palm", "Fist", "Thumbs Up", "One Finger", "Peace"}
+DEBOUNCE_COOLDOWN_SEC = 0.25
+HEARTBEAT_INTERVAL_SEC = 0.5
+VALID_GESTURES = {
+    "Palm",
+    "Fist",
+    "Thumbs Up",
+    "One Finger",
+    "Peace",
+    "OK",
+    "Rock",
+    "Call Me",
+}
 
 
-def send_gesture_async(gesture: str, confidence: str) -> None:
+def send_gesture_async(
+    hands_or_gesture: list[dict[str, Any]] | str,
+    confidence: str | None = None,
+    telemetry: dict[str, Any] | None = None,
+) -> None:
     """Dispatches a gesture prediction payload to the FastAPI backend
 
-    in a non-blocking background thread.
+    in a non-blocking background thread. Supports multi-hand lists,
+    legacy single-gesture calls, and real hardware telemetry.
     """
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    payload = {
-        "gesture": gesture,
-        "confidence": confidence,
+    if isinstance(hands_or_gesture, str):
+        hands = [
+            {
+                "id": 0,
+                "label": "Unknown",
+                "gesture": hands_or_gesture,
+                "confidence": confidence or "High",
+            }
+        ]
+    else:
+        hands = hands_or_gesture
+
+    timestamp = int(time.time())
+    payload: dict[str, Any] = {
+        "hands": hands,
         "timestamp": timestamp,
     }
+    if telemetry is not None:
+        payload["telemetry"] = telemetry
 
     def _worker():
         try:
@@ -45,11 +74,22 @@ def send_gesture_async(gesture: str, confidence: str) -> None:
                 timeout=REQUEST_TIMEOUT_SEC,
             )
             if resp.status_code == 200:
-                print(f"Sent: {gesture} ({confidence})")
-            else:
-                print(
-                    f"[API Warning] Backend returned status {resp.status_code} for {gesture}"
+                summary = (
+                    ", ".join(
+                        f"[{h.get('label', 'Hand')} #{h.get('id', 0)}] {h.get('gesture')} ({h.get('confidence')})"
+                        for h in hands
+                    )
+                    if hands
+                    else "Heartbeat (0 hands)"
                 )
+                telem_info = (
+                    f" | FPS: {telemetry.get('fps')} Latency: {telemetry.get('latency_ms')}ms"
+                    if telemetry
+                    else ""
+                )
+                print(f"Sent: {summary}{telem_info}")
+            else:
+                print(f"[API Warning] Backend returned status {resp.status_code}")
         except requests.exceptions.RequestException as exc:
             # Print non-fatal error message without interrupting webcam feed
             print(
@@ -81,13 +121,17 @@ def run_hand_detection():
 
     print("=" * 65)
     print("GestureForge — Real-Time Hand Detection & Gesture Recognition")
-    print("Supported Gestures: Palm | Fist | Thumbs Up | One Finger | Peace")
+    print(
+        "Supported Gestures: Palm | Fist | Thumbs Up | One Finger | Peace | OK | Rock | Call Me"
+    )
     print(f"Streaming to Backend: {BACKEND_URL}")
     print("Press 'Q' in the video window to quit.")
     print("=" * 65)
 
-    prev_time = time.time()
-    last_sent_gesture = None
+    prev_perf = time.perf_counter()
+    frame_durations: collections.deque[float] = collections.deque(maxlen=20)
+    frame_count = 0
+    last_sent_hands_state = None
     last_sent_time = 0.0
 
     # Configure MediaPipe Hands
@@ -104,7 +148,20 @@ def run_hand_detection():
                     print("Warning: Empty frame received from webcam. Skipping...")
                     continue
 
+                frame_count += 1
                 current_time = time.time()
+
+                # Calculate smoothed rolling FPS using a sliding window
+                current_perf = time.perf_counter()
+                frame_delta = current_perf - prev_perf
+                prev_perf = current_perf
+                if frame_delta > 0:
+                    frame_durations.append(frame_delta)
+                rolling_fps = (
+                    round(len(frame_durations) / sum(frame_durations), 1)
+                    if frame_durations
+                    else 0.0
+                )
 
                 # Flip the frame horizontally for an intuitive mirror view
                 frame = cv2.flip(frame, 1)
@@ -113,11 +170,16 @@ def run_hand_detection():
                 # MediaPipe expects RGB images; convert from BGR
                 rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-                # Performance optimization: mark image as non-writeable before inference
+                # Measure actual MediaPipe inference latency with perf_counter
                 rgb_frame.flags.writeable = False
+                inference_start = time.perf_counter()
                 results = hands.process(rgb_frame)
+                inference_latency_ms = round(
+                    (time.perf_counter() - inference_start) * 1000.0, 2
+                )
                 rgb_frame.flags.writeable = True
 
+                detected_hands: list[dict[str, Any]] = []
                 hand_count = 0
                 active_gesture = "None"
                 active_confidence = "N/A"
@@ -143,7 +205,29 @@ def run_hand_detection():
                             hand_landmarks, hand_id=hand_idx
                         )
 
-                        # Track primary hand gesture for main HUD overlay and backend streaming
+                        # Determine handedness label if available from MediaPipe
+                        label = "Unknown"
+                        if results.multi_handedness and hand_idx < len(
+                            results.multi_handedness
+                        ):
+                            classification = results.multi_handedness[
+                                hand_idx
+                            ].classification
+                            if classification:
+                                label = classification[0].label
+
+                        # Collect valid gestures for multi-hand payload
+                        if gesture in VALID_GESTURES:
+                            detected_hands.append(
+                                {
+                                    "id": hand_idx,
+                                    "label": label,
+                                    "gesture": gesture,
+                                    "confidence": confidence,
+                                }
+                            )
+
+                        # Track primary hand gesture for main HUD overlay text
                         if hand_idx == 0:
                             active_gesture = gesture
                             active_confidence = confidence
@@ -151,7 +235,7 @@ def run_hand_detection():
                         # 3. Render per-hand floating tag near the wrist
                         wrist = hand_landmarks.landmark[GestureClassifier.WRIST]
                         wrist_px = (int(wrist.x * w), int(wrist.y * h) + 25)
-                        tag_text = f"{gesture} ({confidence})"
+                        tag_text = f"[{label}] {gesture} ({confidence})"
                         cv2.putText(
                             frame,
                             tag_text,
@@ -164,46 +248,65 @@ def run_hand_detection():
                         )
 
                 # -------------------------------------------------------------
-                # Smart Debounced API Streaming to Backend
+                # Construct Real-Time Hardware Telemetry Payload
                 # -------------------------------------------------------------
-                if active_gesture in VALID_GESTURES:
-                    # Send only if gesture changed OR cooldown expired
-                    gesture_changed = active_gesture != last_sent_gesture
+                telemetry_data = {
+                    "fps": rolling_fps,
+                    "latency_ms": inference_latency_ms,
+                    "frame_timestamp": round(current_time, 3),
+                    "frame": frame_count,
+                    "hand_count": hand_count,
+                }
+
+                # -------------------------------------------------------------
+                # Smart Debounced API Streaming to Backend (Multi-Hand + Telemetry)
+                # -------------------------------------------------------------
+                if detected_hands:
+                    current_hands_state = tuple(
+                        (h["id"], h["label"], h["gesture"]) for h in detected_hands
+                    )
+                    hands_changed = current_hands_state != last_sent_hands_state
                     cooldown_expired = (
                         current_time - last_sent_time
                     ) >= DEBOUNCE_COOLDOWN_SEC
 
-                    if gesture_changed or cooldown_expired:
-                        send_gesture_async(active_gesture, active_confidence)
-                        last_sent_gesture = active_gesture
+                    if hands_changed or cooldown_expired:
+                        send_gesture_async(detected_hands, telemetry=telemetry_data)
+                        last_sent_hands_state = current_hands_state
                         last_sent_time = current_time
                 else:
-                    # Reset tracker when no valid gesture is detected so next gesture sends immediately
-                    last_sent_gesture = None
-
-                # Calculate live FPS
-                fps = (
-                    1.0 / (current_time - prev_time)
-                    if (current_time - prev_time) > 0
-                    else 0.0
-                )
-                prev_time = current_time
+                    # Reset tracker when no valid gesture is detected
+                    last_sent_hands_state = None
+                    # Send periodic telemetry heartbeat even when 0 hands are in view
+                    if (current_time - last_sent_time) >= HEARTBEAT_INTERVAL_SEC:
+                        send_gesture_async([], telemetry=telemetry_data)
+                        last_sent_time = current_time
 
                 # -------------------------------------------------------------
                 # UI Overlay (Telemetry HUD)
                 # -------------------------------------------------------------
                 # Dark translucent background for HUD telemetry readability
-                cv2.rectangle(frame, (10, 10), (320, 185), (20, 20, 20), -1)
-                cv2.rectangle(frame, (10, 10), (320, 185), (80, 80, 80), 1)
+                cv2.rectangle(frame, (10, 10), (330, 215), (20, 20, 20), -1)
+                cv2.rectangle(frame, (10, 10), (330, 215), (80, 80, 80), 1)
 
-                # 1. FPS counter
+                # 1. FPS counter & Inference Latency
                 cv2.putText(
                     frame,
-                    f"FPS: {int(fps)}",
+                    f"FPS: {rolling_fps:.1f}",
                     (25, 40),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
+                    0.75,
                     (0, 255, 128),
+                    2,
+                    cv2.LINE_AA,
+                )
+                cv2.putText(
+                    frame,
+                    f"Latency: {inference_latency_ms:.1f}ms",
+                    (170, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.65,
+                    (0, 220, 255),
                     2,
                     cv2.LINE_AA,
                 )
@@ -211,10 +314,10 @@ def run_hand_detection():
                 # 2. Hands detected count
                 cv2.putText(
                     frame,
-                    f"Hands: {hand_count}",
-                    (200, 40),
+                    f"Hands Tracked: {hand_count}",
+                    (25, 75),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8,
+                    0.7,
                     (0, 220, 255),
                     2,
                     cv2.LINE_AA,
@@ -224,9 +327,9 @@ def run_hand_detection():
                 cv2.putText(
                     frame,
                     f"Gesture: {active_gesture}",
-                    (25, 85),
+                    (25, 115),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.9,
+                    0.8,
                     (0, 255, 255),
                     2,
                     cv2.LINE_AA,
@@ -241,9 +344,9 @@ def run_hand_detection():
                 cv2.putText(
                     frame,
                     f"Confidence: {active_confidence}",
-                    (25, 125),
+                    (25, 155),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.75,
+                    0.7,
                     conf_color,
                     2,
                     cv2.LINE_AA,
@@ -253,9 +356,9 @@ def run_hand_detection():
                 cv2.putText(
                     frame,
                     "Press 'Q' to Exit",
-                    (25, 165),
+                    (25, 195),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
+                    0.55,
                     (180, 180, 180),
                     1,
                     cv2.LINE_AA,

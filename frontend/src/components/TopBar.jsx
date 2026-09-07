@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Activity, Wifi, WifiOff, Radio } from 'lucide-react';
 
-export default function TopBar({ backendStatus, pingMs }) {
+export default function TopBar({ backendStatus, pingMs, telemetry = null }) {
   const [currentTime, setCurrentTime] = useState('');
 
   useEffect(() => {
@@ -52,7 +52,13 @@ export default function TopBar({ backendStatus, pingMs }) {
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyber-panel/90 border border-cyber-border font-mono text-xs shadow-inner">
           <Radio size={14} className="text-cyber-teal animate-pulse" />
           <span className="text-white font-semibold tracking-wider">LIVE OPS</span>
-          <span className="w-2 h-2 rounded-full bg-cyber-teal status-dot" />
+          {telemetry && typeof telemetry.fps === 'number' && telemetry.fps > 0 ? (
+            <span className="text-cyber-teal font-mono text-[11px] font-bold">
+              {telemetry.fps.toFixed(1)} FPS • {telemetry.latency_ms.toFixed(1)}ms
+            </span>
+          ) : (
+            <span className="w-2 h-2 rounded-full bg-cyber-teal status-dot" />
+          )}
         </div>
         <div className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-cyber-panel/60 border border-white/5 font-mono text-xs text-cyber-muted">
           <Activity size={13} className="text-cyber-teal" />
@@ -73,9 +79,12 @@ export default function TopBar({ backendStatus, pingMs }) {
             <>
               <Wifi size={14} className="text-cyber-teal animate-pulse" />
               <div className="flex flex-col text-left">
-                <span className="font-semibold tracking-wider">BACKEND CONNECTED</span>
+                <span className="font-semibold tracking-wider">WS TELEMETRY LIVE</span>
                 <span className="text-[10px] text-cyber-teal/80 opacity-90">
-                  PORT 8000 • {pingMs}ms
+                  PORT 8000 • {pingMs}ms PING
+                  {telemetry && typeof telemetry.latency_ms === 'number' && telemetry.latency_ms > 0
+                    ? ` • ${telemetry.latency_ms.toFixed(1)}ms AI`
+                    : ''}
                 </span>
               </div>
               <span className="w-2.5 h-2.5 rounded-full bg-cyber-teal status-dot ml-1" />
@@ -85,7 +94,7 @@ export default function TopBar({ backendStatus, pingMs }) {
               <WifiOff size={14} className="text-cyber-danger" />
               <div className="flex flex-col text-left">
                 <span className="font-semibold tracking-wider">GATEWAY OFFLINE</span>
-                <span className="text-[10px] text-cyber-danger/80">RETRYING POLLING...</span>
+                <span className="text-[10px] text-cyber-danger/80">RECONNECTING WS...</span>
               </div>
               <span className="w-2.5 h-2.5 rounded-full bg-cyber-danger animate-pulse ml-1" />
             </>

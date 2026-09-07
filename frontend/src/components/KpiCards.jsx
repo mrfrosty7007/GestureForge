@@ -1,6 +1,6 @@
 import { Hand, Gauge, Server, CheckCircle2, AlertTriangle, Sparkles } from 'lucide-react';
 
-export default function KpiCards({ gestureData, backendStatus, pingMs }) {
+export default function KpiCards({ gestureData, backendStatus, pingMs, telemetry = null }) {
   const isOnline = backendStatus === 'connected';
   const hasGesture = gestureData && gestureData.gesture && gestureData.gesture !== 'None';
   const gestureName = hasGesture
@@ -132,22 +132,30 @@ export default function KpiCards({ gestureData, backendStatus, pingMs }) {
               {isOnline ? 'OPERATIONAL' : 'OFFLINE'}
             </h2>
             <span className="font-mono text-xs text-cyber-muted">
-              {isOnline ? `${pingMs}ms LATENCY` : 'PORT 8000'}
+              {isOnline
+                ? `${pingMs}ms PING${
+                    telemetry &&
+                    typeof telemetry.latency_ms === 'number' &&
+                    telemetry.latency_ms > 0
+                      ? ` • ${telemetry.latency_ms.toFixed(1)}ms AI`
+                      : ''
+                  }`
+                : 'PORT 8000'}
             </span>
           </div>
 
           <p className="font-mono text-xs text-cyber-muted mt-2 truncate">
             Target:{' '}
             <code className="text-white/80 bg-cyber-panel-dark px-1.5 py-0.5 rounded">
-              http://127.0.0.1:8000
+              ws://127.0.0.1:8000/ws/telemetry
             </code>
           </p>
         </div>
 
         <div className="font-mono text-[11px] text-cyber-muted flex items-center justify-between mt-1">
-          <span>Polling: 1.0s interval</span>
+          <span>WebSocket: Real-Time Push</span>
           <span className={isOnline ? 'text-cyber-teal' : 'text-cyber-danger'}>
-            {isOnline ? 'Sync Active' : 'Check backend service'}
+            {isOnline ? 'Stream Active' : 'Check backend service'}
           </span>
         </div>
       </div>

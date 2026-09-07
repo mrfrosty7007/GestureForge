@@ -1,26 +1,80 @@
-"""Rule-based Hand Gesture Classifier for GestureForge.
+"""Hybrid ML & Rule-Based Hand Gesture Classifier for GestureForge.
 
-Determines whether individual fingers are extended or folded by comparing
-MediaPipe landmark geometric positions, and classifies the resulting pose
-into one of five supported gestures:
+Combines a trained scikit-learn machine learning classifier (RandomForest)
+with orientation-aware geometric heuristic rules as a robust fallback mechanism.
+
+Supported ML Gestures:
+- Palm
+- Fist
+- Peace
+- One Finger
+- Thumbs Up
+- OK
+- Rock
+- Call Me
+
+Supported Fallback Geometric Gestures:
 - Palm
 - Fist
 - Thumbs Up
 - One Finger
 - Peace
 
-Includes orientation-aware vector angle calculation for robust thumb detection
+Includes orientation-aware vector angle calculation for robust thumb detection,
+wrist-relative translation and scale normalization for invariant ML inference,
 and temporal hysteresis smoothing to eliminate frame-to-frame jitter.
 """
 
+from __future__ import annotations
+
 import math
+import sys
+from pathlib import Path
 from typing import Any
+
+import joblib
+import numpy as np
+
+# Ensure scripts directory can be imported for preprocessing utilities
+_scripts_dir = str(Path(__file__).resolve().parent / "scripts")
+if _scripts_dir not in sys.path:
+    sys.path.insert(0, _scripts_dir)
+
+try:
+    from preprocess import normalize_landmarks
+except ImportError:
+    try:
+        from scripts.preprocess import normalize_landmarks
+    except ImportError:
+
+        def normalize_landmarks(landmarks: Any) -> np.ndarray:
+            """Fallback normalization if scripts/preprocess.py is unreachable."""
+            lm_list = (
+                landmarks.landmark if hasattr(landmarks, "landmark") else landmarks
+            )
+            coords = np.zeros((21, 3), dtype=np.float32)
+            for i in range(min(len(lm_list), 21)):
+                lm = lm_list[i]
+                coords[i] = [
+                    getattr(lm, "x", 0.0),
+                    getattr(lm, "y", 0.0),
+                    getattr(lm, "z", 0.0),
+                ]
+            wrist = coords[0].copy()
+            translated = coords - wrist
+            distances = np.linalg.norm(translated, axis=1)
+            max_d = float(np.max(distances))
+            if max_d > 1e-6:
+                return (translated / max_d).flatten().astype(np.float32)
+            return translated.flatten().astype(np.float32)
 
 
 class GestureClassifier:
-    """Classifies 21 MediaPipe hand landmarks into discrete gesture classes
+    """Classifies 21 MediaPipe hand landmarks using a hybrid pipeline:
 
-    using geometric heuristic rules with temporal hysteresis smoothing.
+    1. ML Model (RandomForest) on normalized landmarks.
+    2. Geometric heuristic rules as a graceful fallback when ML confidence is low.
+    3. Multi-hand temporal hysteresis smoothing to eliminate jitter.
     """
 
     # MediaPipe Hands landmark indices
@@ -50,17 +104,57 @@ class GestureClassifier:
     PINKY_DIP = 19
     PINKY_TIP = 20
 
-    def __init__(self, hysteresis_frames: int = 2) -> None:
-        """Initializes the classifier with configurable hysteresis threshold.
+    def __init__(
+        self,
+        hysteresis_frames: int = 2,
+        model_path: str | Path | None = None,
+        min_ml_confidence: float = 0.55,
+    ) -> None:
+        """Initializes the classifier with configurable hysteresis and ML model.
 
         Args:
             hysteresis_frames: Number of consecutive frames a gesture must be
                 consistently observed before replacing the currently active gesture.
                 Defaults to 2 frames.
+            model_path: Optional path to a trained joblib model. Defaults to
+                ai-model/models/gesture_model.joblib. If the model file is not found
+                or fails to load, the classifier seamlessly falls back to geometric rules.
+            min_ml_confidence: Minimum prediction probability required from the ML model
+                (between 0.0 and 1.0). Predictions below this threshold fall back to
+                geometric rules. Defaults to 0.55.
         """
         self.hysteresis_frames = hysteresis_frames
+        self.min_ml_confidence = min_ml_confidence
         # State tracking per hand ID: {hand_id: state_dict}
         self._states: dict[int, dict[str, Any]] = {}
+
+        # ML Model attributes
+        self.model: Any = None
+        self.class_names: list[str] = []
+
+        # Attempt to load ML model bundle
+        default_model_path = (
+            Path(__file__).resolve().parent / "models" / "gesture_model.joblib"
+        )
+        resolved_path = (
+            Path(model_path) if model_path is not None else default_model_path
+        )
+
+        if resolved_path and resolved_path.exists():
+            try:
+                loaded = joblib.load(resolved_path)
+                if isinstance(loaded, dict) and "model" in loaded:
+                    self.model = loaded["model"]
+                    self.class_names = list(
+                        loaded.get("classes", getattr(self.model, "classes_", []))
+                    )
+                else:
+                    self.model = loaded
+                    self.class_names = list(getattr(self.model, "classes_", []))
+            except Exception:
+                # Corrupted or incompatible model file; fall back gracefully
+                self.model = None
+                self.class_names = []
 
     @staticmethod
     def _distance(p1: Any, p2: Any) -> float:
@@ -196,12 +290,14 @@ class GestureClassifier:
     def classify_raw(self, landmarks: Any) -> tuple[str, str]:
         """Classifies the hand gesture from landmarks without temporal smoothing.
 
+        Execution pipeline:
+        1. Evaluate normalized landmark coordinates with trained ML model.
+        2. If confidence >= min_ml_confidence, return (predicted_gesture, confidence).
+        3. If ML confidence is low or model is unavailable, fall back to geometric rules.
+
         Recognized gestures:
-        - Palm: All five fingers extended.
-        - Fist: All fingers folded, compact fingertip cluster, thumb wrapped.
-        - Thumbs Up: Thumb pointing up and separated; Index, Middle, Ring, Pinky folded.
-        - One Finger: Only index finger extended.
-        - Peace: Index and Middle fingers extended; Ring and Pinky folded.
+        - ML: Palm, Fist, Peace, One Finger, Thumbs Up, OK, Rock, Call Me.
+        - Geometric Fallback: Palm, Fist, Thumbs Up, One Finger, Peace.
 
         Args:
             landmarks: MediaPipe NormalizedLandmarkList or list of 21 landmark objects.
@@ -214,6 +310,32 @@ class GestureClassifier:
 
         if not lm_list or len(lm_list) < 21:
             return "None", "N/A"
+
+        # -----------------------------------------------------------------
+        # Step 1: Machine Learning Model Inference
+        # -----------------------------------------------------------------
+        if self.model is not None:
+            try:
+                features = normalize_landmarks(lm_list).reshape(1, -1)
+                if hasattr(self.model, "predict_proba"):
+                    probabilities = self.model.predict_proba(features)[0]
+                    best_idx = int(np.argmax(probabilities))
+                    max_prob = float(probabilities[best_idx])
+                    predicted_class = str(self.model.classes_[best_idx])
+
+                    if max_prob >= self.min_ml_confidence:
+                        confidence = "High" if max_prob >= 0.80 else "Medium"
+                        return predicted_class, confidence
+                else:
+                    prediction = self.model.predict(features)[0]
+                    return str(prediction), "Medium"
+            except Exception:
+                # Any ML inference error falls through gracefully to geometric rules
+                pass
+
+        # -----------------------------------------------------------------
+        # Step 2: Geometric Heuristic Fallback
+        # -----------------------------------------------------------------
 
         states = self.get_finger_states(lm_list)
 

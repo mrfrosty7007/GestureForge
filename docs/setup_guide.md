@@ -73,24 +73,14 @@ uvicorn main:app --reload
 
 ## ⚛️ 3. Frontend Setup
 
-In a new terminal window:
+From the repository root (or inside `frontend/`):
 
 ```bash
-cd frontend
-
-# Install dependencies (pnpm recommended; npm also supported)
-pnpm install
-# or: npm install
-
-# Configure environment variables
-# Windows PowerShell:
-Copy-Item .env.example .env
-# macOS / Linux:
-cp .env.example .env
+# Install frontend dependencies
+pnpm --dir frontend install
 
 # Start the Vite development server
-pnpm run dev
-# or: npm run dev
+pnpm --dir frontend dev
 ```
 Open your browser at **`http://localhost:5173`**.
 
@@ -98,16 +88,16 @@ Open your browser at **`http://localhost:5173`**.
 
 ## 🧪 4. Running Verification & Quality Checks
 
-### Backend Quality Suite (Ruff, Black, Pytest)
+### Python & Backend Quality Suite (Ruff, Black, Pytest)
 ```bash
 # Run Ruff linter
 uv run ruff check .
 
 # Run Black code formatting check
-uv run black --check backend
+uv run black --check backend ai-model
 
 # Run automated tests
-uv run pytest backend/tests
+uv run pytest
 ```
 
 ### Frontend Quality Suite (ESLint, Prettier, Vite Build)
