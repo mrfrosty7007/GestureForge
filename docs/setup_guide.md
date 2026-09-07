@@ -43,8 +43,7 @@ cp backend/.env.example backend/.env
 
 ### Step 1.3: Start the backend server
 ```bash
-cd backend
-uv run uvicorn app:app --reload
+uv run uvicorn backend.main:app --reload
 ```
 - API Base URL: `http://127.0.0.1:8000`
 - Health Endpoint: `http://127.0.0.1:8000/health`
@@ -67,7 +66,7 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 cp .env.example .env
-uvicorn app:app --reload
+uvicorn main:app --reload
 ```
 
 ---

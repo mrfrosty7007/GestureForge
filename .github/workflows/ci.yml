@@ -38,7 +38,7 @@ jobs:
 
       - name: Verify FastAPI Server Startup & Health Check
         run: |
-          uv run uvicorn app:app --app-dir backend --host 127.0.0.1 --port 8000 &
+          uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 &
           SERVER_PID=$!
           sleep 4
           curl --fail --retry 3 --retry-delay 2 http://127.0.0.1:8000/health || (kill $SERVER_PID && exit 1)

@@ -6,13 +6,13 @@ and polling the latest detected gesture.
 
 from fastapi import APIRouter
 
-from models import (
+from .models import (
     GesturePrediction,
     GestureReceiptResponse,
     HealthResponse,
     LatestGestureResponse,
 )
-from storage import storage
+from .storage import storage
 
 router = APIRouter()
 

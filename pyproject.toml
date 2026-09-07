@@ -58,7 +58,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["config", "routes", "models", "gesture", "app"]
+known-first-party = ["backend", "config", "routes", "models", "gesture"]
 
 # ----------------------------------------------------------------------
 # Black Formatter Configuration
@@ -89,6 +89,7 @@ testpaths = [
     "backend/tests",
 ]
 pythonpath = [
+    ".",
     "backend"
 ]
 filterwarnings = [

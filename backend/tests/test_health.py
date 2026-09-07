@@ -7,20 +7,12 @@ Validates:
 - GET /gesture/latest (empty and populated states)
 """
 
-import sys
-from pathlib import Path
+import pytest
+from fastapi.testclient import TestClient
 
-# Ensure backend directory is in sys.path when running pytest or direct execution
-backend_dir = Path(__file__).resolve().parent.parent
-if str(backend_dir) not in sys.path:
-    sys.path.insert(0, str(backend_dir))
-
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-
-from main import app  # noqa: E402
-from routes import health_check  # noqa: E402
-from storage import storage  # noqa: E402
+from backend.main import app
+from backend.routes import health_check
+from backend.storage import storage
 
 
 @pytest.fixture(autouse=True)

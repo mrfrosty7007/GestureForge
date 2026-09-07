@@ -6,7 +6,7 @@ external database dependencies (no Redis, no SQLite).
 
 import threading
 
-from models import GesturePrediction
+from .models import GesturePrediction
 
 
 class GestureStorage:

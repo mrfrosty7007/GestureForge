@@ -6,7 +6,7 @@ Configures CORS, registers API routers, and provides Swagger documentation.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import router
+from .routes import router
 
 app = FastAPI(
     title="GestureForge Backend",
