@@ -1,4 +1,14 @@
-import { Activity, Clock, Cpu, Radio, CheckCircle2, AlertCircle, RefreshCw, BarChart3, Database } from 'lucide-react';
+import {
+  Activity,
+  Clock,
+  Cpu,
+  Radio,
+  CheckCircle2,
+  AlertCircle,
+  RefreshCw,
+  BarChart3,
+  Database,
+} from 'lucide-react';
 
 export default function TelemetryPanel({
   backendStatus,
@@ -84,7 +94,11 @@ export default function TelemetryPanel({
               {isOnline ? (hasGesture ? handsDetected : 0) : 0}
             </span>
             <span className="font-mono text-[11px] text-cyber-muted">
-              {hasGesture ? (handsDetected === 1 ? 'HAND TRACKED' : 'HANDS TRACKED') : 'NONE IN VIEW'}
+              {hasGesture
+                ? handsDetected === 1
+                  ? 'HAND TRACKED'
+                  : 'HANDS TRACKED'
+                : 'NONE IN VIEW'}
             </span>
           </div>
           <div className="flex gap-1.5 mt-2">
@@ -149,7 +163,8 @@ export default function TelemetryPanel({
             </span>
           </div>
           <div className="font-mono text-[10px] text-cyber-muted mt-1.5 truncate">
-            Latency: <span className="text-white">{isOnline ? `${pingMs}ms` : 'Timeout'}</span> • Endpoint: <span className="text-white">:8000</span>
+            Latency: <span className="text-white">{isOnline ? `${pingMs}ms` : 'Timeout'}</span> •
+            Endpoint: <span className="text-white">:8000</span>
           </div>
         </div>
       </div>

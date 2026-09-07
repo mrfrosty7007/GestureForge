@@ -24,7 +24,11 @@ export default function CameraPanel({ gestureData, isConnected }) {
 
         <div className="flex items-center gap-2 font-mono text-xs">
           <span className="px-2.5 py-1 rounded bg-cyber-panel-dark text-cyber-teal border border-cyber-border flex items-center gap-1.5">
-            <Crosshair size={13} className="text-cyber-teal animate-spin" style={{ animationDuration: '12s' }} />
+            <Crosshair
+              size={13}
+              className="text-cyber-teal animate-spin"
+              style={{ animationDuration: '12s' }}
+            />
             21 LANDMARKS TRACKING
           </span>
           <span className="px-2.5 py-1 rounded bg-cyber-teal/10 text-cyber-teal border border-cyber-teal/30 font-semibold">
@@ -66,7 +70,13 @@ export default function CameraPanel({ gestureData, isConnected }) {
           {hasGesture ? (
             <div className="flex flex-col items-center animate-fadeIn">
               <div className="relative flex items-center justify-center w-24 h-24 rounded-2xl bg-cyber-teal/15 border-2 border-cyber-teal shadow-glow-teal-lg mb-4">
-                <svg className="w-14 h-14 text-cyber-teal animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <svg
+                  className="w-14 h-14 text-cyber-teal animate-pulse"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
                   <path d="M18 11V6a2 2 0 0 0-4 0v5h-1V3a2 2 0 0 0-4 0v8H8V5a2 2 0 0 0-4 0v9a8 8 0 0 0 16 0v-3z" />
                 </svg>
                 <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded bg-cyber-teal text-cyber-bg font-mono font-bold text-[10px]">
@@ -79,7 +89,8 @@ export default function CameraPanel({ gestureData, isConnected }) {
               </div>
 
               <p className="font-mono text-xs text-cyber-teal/90">
-                Confidence: <span className="font-bold text-white">{gestureData.confidence}</span> • Ingested via Backend API
+                Confidence: <span className="font-bold text-white">{gestureData.confidence}</span> •
+                Ingested via Backend API
               </p>
             </div>
           ) : (
@@ -92,7 +103,9 @@ export default function CameraPanel({ gestureData, isConnected }) {
                 AWAITING CAMERA INGESTION
               </h4>
               <p className="font-mono text-xs text-cyber-muted max-w-xs leading-relaxed mb-4">
-                Webcam stream is processed locally in <code className="text-cyber-teal">ai-model/hand_detection.py</code> and synchronized to this HUD.
+                Webcam stream is processed locally in{' '}
+                <code className="text-cyber-teal">ai-model/hand_detection.py</code> and synchronized
+                to this HUD.
               </p>
 
               <div className="p-3 rounded-lg bg-cyber-panel border border-cyber-border/60 text-left font-mono text-xs text-cyber-muted w-full">

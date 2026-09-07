@@ -3,8 +3,12 @@ import { Hand, Gauge, Server, CheckCircle2, AlertTriangle, Sparkles } from 'luci
 export default function KpiCards({ gestureData, backendStatus, pingMs }) {
   const isOnline = backendStatus === 'connected';
   const hasGesture = gestureData && gestureData.gesture && gestureData.gesture !== 'None';
-  const gestureName = hasGesture ? gestureData.gesture.toUpperCase() : (isOnline ? 'WAITING FOR GESTURE' : 'DISCONNECTED');
-  const confidence = hasGesture ? (gestureData.confidence || 'HIGH') : (isOnline ? 'STANDBY' : 'N/A');
+  const gestureName = hasGesture
+    ? gestureData.gesture.toUpperCase()
+    : isOnline
+      ? 'WAITING FOR GESTURE'
+      : 'DISCONNECTED';
+  const confidence = hasGesture ? gestureData.confidence || 'HIGH' : isOnline ? 'STANDBY' : 'N/A';
 
   // Confidence progress gauge percentage
   const getConfidencePercent = () => {
@@ -47,8 +51,13 @@ export default function KpiCards({ gestureData, backendStatus, pingMs }) {
             {gestureName}
           </h2>
           <p className="font-mono text-xs text-cyber-muted mt-1 flex items-center gap-1.5">
-            <Sparkles size={12} className={hasGesture ? 'text-cyber-teal animate-pulse' : 'text-cyber-muted'} />
-            {hasGesture ? `Timestamp: ${gestureData.timestamp || 'Live Stream'}` : 'Position hand in webcam view'}
+            <Sparkles
+              size={12}
+              className={hasGesture ? 'text-cyber-teal animate-pulse' : 'text-cyber-muted'}
+            />
+            {hasGesture
+              ? `Timestamp: ${gestureData.timestamp || 'Live Stream'}`
+              : 'Position hand in webcam view'}
           </p>
         </div>
 
@@ -128,7 +137,10 @@ export default function KpiCards({ gestureData, backendStatus, pingMs }) {
           </div>
 
           <p className="font-mono text-xs text-cyber-muted mt-2 truncate">
-            Target: <code className="text-white/80 bg-cyber-panel-dark px-1.5 py-0.5 rounded">http://127.0.0.1:8000</code>
+            Target:{' '}
+            <code className="text-white/80 bg-cyber-panel-dark px-1.5 py-0.5 rounded">
+              http://127.0.0.1:8000
+            </code>
           </p>
         </div>
 

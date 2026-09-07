@@ -9,8 +9,8 @@
 
 :root {
   --cyber-bg: #050816;
-  --cyber-panel: #0B112C;
-  --cyber-teal: #2EF2C5;
+  --cyber-panel: #0b112c;
+  --cyber-teal: #2ef2c5;
   --cyber-teal-dim: rgba(46, 242, 197, 0.15);
   --cyber-border: rgba(46, 242, 197, 0.22);
 }
@@ -19,14 +19,17 @@ body {
   margin: 0;
   padding: 0;
   background-color: #050816;
-  color: #E2E8F0;
+  color: #e2e8f0;
   font-family: 'Inter', sans-serif;
   overflow-x: hidden;
-  background-image: 
+  background-image:
     radial-gradient(circle at 50% 0%, rgba(46, 242, 197, 0.08) 0%, transparent 60%),
     linear-gradient(to right, rgba(46, 242, 197, 0.02) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(46, 242, 197, 0.02) 1px, transparent 1px);
-  background-size: 100% 100%, 40px 40px, 40px 40px;
+  background-size:
+    100% 100%,
+    40px 40px,
+    40px 40px;
 }
 
 /* Custom Scrollbar */
@@ -51,7 +54,9 @@ body {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(46, 242, 197, 0.22);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(46, 242, 197, 0.03);
+  box-shadow:
+    0 8px 32px 0 rgba(0, 0, 0, 0.5),
+    inset 0 0 15px rgba(46, 242, 197, 0.03);
 }
 
 .cyber-panel:hover {
@@ -62,8 +67,10 @@ body {
   background: rgba(11, 17, 44, 0.8);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid #2EF2C5;
-  box-shadow: 0 0 25px rgba(46, 242, 197, 0.25), inset 0 0 20px rgba(46, 242, 197, 0.05);
+  border: 1px solid #2ef2c5;
+  box-shadow:
+    0 0 25px rgba(46, 242, 197, 0.25),
+    inset 0 0 20px rgba(46, 242, 197, 0.05);
 }
 
 /* Corner Reticles for Cyber Command Deck */
@@ -77,8 +84,8 @@ body {
   left: -1px;
   width: 10px;
   height: 10px;
-  border-top: 2px solid #2EF2C5;
-  border-left: 2px solid #2EF2C5;
+  border-top: 2px solid #2ef2c5;
+  border-left: 2px solid #2ef2c5;
   pointer-events: none;
 }
 .cyber-corner-reticle::after {
@@ -88,14 +95,15 @@ body {
   right: -1px;
   width: 10px;
   height: 10px;
-  border-bottom: 2px solid #2EF2C5;
-  border-right: 2px solid #2EF2C5;
+  border-bottom: 2px solid #2ef2c5;
+  border-right: 2px solid #2ef2c5;
   pointer-events: none;
 }
 
 /* Pulsing Status Dot */
 @keyframes pulseDot {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 1;
     box-shadow: 0 0 10px currentColor;
@@ -112,8 +120,12 @@ body {
 
 /* Radar Scan Line */
 @keyframes radarSweep {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(1000%); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(1000%);
+  }
 }
 .radar-sweep {
   animation: radarSweep 6s linear infinite;

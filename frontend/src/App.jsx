@@ -3,7 +3,16 @@ import TopBar from './components/TopBar';
 import KpiCards from './components/KpiCards';
 import CameraPanel from './components/CameraPanel';
 import TelemetryPanel from './components/TelemetryPanel';
-import { Cpu, Eye, Binary, Layout, Terminal, ExternalLink, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  Cpu,
+  Eye,
+  Binary,
+  Layout,
+  Terminal,
+  ExternalLink,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react';
 
 const BACKEND_URL = 'http://127.0.0.1:8000/gesture/latest';
 
@@ -28,7 +37,7 @@ export default function App() {
         const response = await fetch(BACKEND_URL, {
           method: 'GET',
           headers: {
-            'Accept': 'application/json',
+            Accept: 'application/json',
           },
           // Short timeout simulation to prevent hanging
           signal: AbortSignal.timeout(2000),
@@ -170,20 +179,13 @@ export default function App() {
         </div>
 
         {/* 2. KPI Cards (Current Gesture, Confidence, Backend Status) */}
-        <KpiCards
-          gestureData={gestureData}
-          backendStatus={backendStatus}
-          pingMs={pingMs}
-        />
+        <KpiCards gestureData={gestureData} backendStatus={backendStatus} pingMs={pingMs} />
 
         {/* 3. Live Camera Panel & System Telemetry Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Live Camera Feed Viewport (7 cols) */}
           <div className="lg:col-span-7">
-            <CameraPanel
-              gestureData={gestureData}
-              isConnected={backendStatus === 'connected'}
-            />
+            <CameraPanel gestureData={gestureData} isConnected={backendStatus === 'connected'} />
           </div>
 
           {/* System Telemetry Panel (5 cols) */}

@@ -21,7 +21,13 @@ export default function TopBar({ backendStatus, pingMs }) {
       {/* Brand Logo & Ops Title */}
       <div className="flex items-center gap-3.5">
         <div className="relative flex items-center justify-center w-10 h-10 rounded-lg bg-cyber-panel border border-cyber-teal shadow-glow-teal">
-          <svg className="w-6 h-6 text-cyber-teal" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            className="w-6 h-6 text-cyber-teal"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M18 11V6a2 2 0 0 0-4 0v5h-1V3a2 2 0 0 0-4 0v8H8V5a2 2 0 0 0-4 0v9a8 8 0 0 0 16 0v-3z" />
           </svg>
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyber-teal animate-ping" />
@@ -68,7 +74,9 @@ export default function TopBar({ backendStatus, pingMs }) {
               <Wifi size={14} className="text-cyber-teal animate-pulse" />
               <div className="flex flex-col text-left">
                 <span className="font-semibold tracking-wider">BACKEND CONNECTED</span>
-                <span className="text-[10px] text-cyber-teal/80 opacity-90">PORT 8000 • {pingMs}ms</span>
+                <span className="text-[10px] text-cyber-teal/80 opacity-90">
+                  PORT 8000 • {pingMs}ms
+                </span>
               </div>
               <span className="w-2.5 h-2.5 rounded-full bg-cyber-teal status-dot ml-1" />
             </>
