@@ -61,7 +61,7 @@ uv sync
 pnpm --dir frontend install
 ```
 
-Run the 3 services in separate terminals:
+Run the backend and frontend in separate terminals:
 
 ### 1. Backend Gateway (Terminal 1)
 
@@ -81,14 +81,18 @@ pnpm --dir frontend dev
 
 - Cyber Operations HUD: [http://localhost:5173](http://localhost:5173)
 
-### 3. Real-Time AI Camera Pipeline (Terminal 3)
+The backend owns the single headless AI worker and webcam in the normal production-style flow. Do **not** start a second camera process alongside the backend.
+
+### Optional: AI Worker Preview / Debug
 
 ```bash
-python ai-model/hand_detection.py
+python ai-model/hand_detection.py --preview
 ```
 
-- Tracks 21 hand landmarks, classifies gestures in real-time, and streams debounced telemetry to the FastAPI gateway.
-- Press `Q` in the camera viewport to quit cleanly.
+- Use the standalone script only for explicit local computer-vision debugging. It owns the webcam while it runs, so stop the backend worker or set `GESTUREFORGE_DISABLE_AI_WORKER=1` first.
+- Press `Q` in the OpenCV preview window to quit cleanly.
+
+The dashboard receives video through the primary binary `WS /ws/video` latest-frame stream. `GET /video/feed` remains available as an MJPEG fallback for clients that cannot consume the WebSocket video stream; it is not the dashboard's primary path.
 
 ---
 
@@ -112,4 +116,3 @@ python ai-model/hand_detection.py
 | **Phase 1 — Perception MVP** | ✅ Complete | MediaPipe tracking, 5 gestures, FastAPI gateway, React Cyber HUD |
 | **Phase 2 — Machine Learning** | ⏳ Next | Custom gesture dataset capture, feature extraction, ML classifiers |
 | **Phase 3 — System Polish** | ⏳ Planned | Expanded gestures, audio/visual triggers, hackathon showcase deck |
-

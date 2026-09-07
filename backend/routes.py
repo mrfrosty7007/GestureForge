@@ -9,7 +9,7 @@ import logging
 import threading
 from typing import Any
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Response, WebSocket, WebSocketDisconnect
 
 from .models import (
     GesturePrediction,
@@ -295,3 +295,27 @@ async def websocket_video(websocket: WebSocket) -> None:
     except Exception as exc:
         logger.warning("Video WebSocket error encountered: %s", exc)
         video_manager.disconnect(websocket)
+
+
+@router.get("/video/feed", tags=["Video"])
+async def video_feed():
+    """Serve latest OpenCV frame as MJPEG stream for ultra-low latency browser consumption.
+
+    Returns a multipart/x-mixed-replace stream of JPEG frames that can be consumed
+    directly by an <img> tag for minimal latency video display.
+    """
+
+    def generate():
+        while True:
+            with video_manager._frame_lock:
+                frame = video_manager._latest_frame
+            if frame is not None:
+                yield (
+                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
+            # Small delay to prevent overwhelming the connection
+            import time
+
+            time.sleep(0.033)  # ~30 FPS
+
+    return Response(generate(), media_type="multipart/x-mixed-replace; boundary=frame")

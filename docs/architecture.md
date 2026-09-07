@@ -14,7 +14,7 @@ Defines the end-to-end technical architecture, component boundaries, data protoc
 ```mermaid
 graph LR
     subgraph Client ["Client Browser (React + Vite)"]
-        Cam["Webcam Video Stream"]
+        Cam["Streamed Video Frames"]
         HUD["Live HUD & Telemetry UI"]
         Status["Status & Health Monitor"]
     end
@@ -27,8 +27,7 @@ graph LR
     end
 
     Status -->|HTTP GET /health| HealthRoute
-    Cam -->|Base64 / WebRTC Frame| WS
-    WS -->|OpenCV BGR Matrix| Vision
+    Vision -->|JPEG latest-frame stream| Cam
     Vision -->|21 Normalized Landmarks (x,y,z)| Classifier
     Classifier -->|Predicted Class & Confidence| WS
     WS -->|JSON Telemetry Event| HUD
@@ -41,17 +40,19 @@ graph LR
 ### 1. Frontend Layer (`frontend/`)
 - **Technology**: React 18 / 19, Vite, Modern CSS.
 - **Role**:
-  - Captures webcam video feed via browser's `navigator.mediaDevices.getUserMedia()`.
-  - Renders live HUD overlay with landmark points and confidence gauges.
+  - Consumes binary JPEG frames from the backend's primary `WS /ws/video` stream.
+  - Renders live HUD overlays with gesture and hardware telemetry.
   - Monitors backend gateway uptime and latency via `StatusCard.jsx`.
-  - Provides a camera placeholder during Phase 0 and real-time canvas rendering in Phase 1.
+  - Does not access or reopen the webcam. `GET /video/feed` is an MJPEG fallback only.
 
 ### 2. API Gateway (`backend/main.py`, `backend/routes.py`)
 - **Technology**: FastAPI, Uvicorn, Pydantic, WebSockets.
 - **Role**:
   - Serves REST endpoints (`/`, `/health`, `/gesture`, `/gesture/latest`).
   - Implements CORS middleware allowing cross-origin requests from the React dev server (`http://localhost:5173`).
-  - Provides real-time WebSocket telemetry gateway (`/ws/telemetry`) with `ConnectionManager` broadcasting multi-hand gesture streams with sub-30ms perceived latency.
+  - Provides separate real-time WebSocket telemetry (`/ws/telemetry`) and binary video (`/ws/video`) gateways.
+  - Owns the headless AI worker lifecycle and is the sole webcam owner in normal operation.
+  - Retains `GET /video/feed` as an MJPEG fallback without replacing latest-frame buffering.
 
 ### 3. Perception & Computer Vision (`ai-model/hand_detection.py`)
 - **Technology**: Google MediaPipe, OpenCV (cv2).

@@ -50,14 +50,18 @@ uvicorn main:app --reload
 
 ---
 
-### Step 2: Start the AI Gesture Recognition Demo (Terminal 2)
+The backend owns the headless AI worker and webcam in the normal integrated flow. Do not start the standalone script at the same time.
+
+### Optional: Start the AI Gesture Recognition Preview
 
 ```bash
 cd ai-model
 .venv\Scripts\activate          # Windows (source .venv/bin/activate on macOS/Linux)
 pip install -r requirements.txt
-python hand_detection.py
+python hand_detection.py --preview
 ```
+
+Use this standalone command only for explicit local debugging. Stop the backend-owned worker first, or disable it with `GESTUREFORGE_DISABLE_AI_WORKER=1`, to prevent duplicate camera ownership.
 
 ---
 

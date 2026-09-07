@@ -68,7 +68,7 @@ graph TD
 - **Primary Domain**: `frontend/` (`App.jsx`, `components/`, `index.css`)
 - **Key Responsibilities**:
   - React + Vite dashboard state management, accessibility, and visual polish.
-  - Browser camera stream integration via `navigator.mediaDevices.getUserMedia()`.
+  - Rendering backend-owned streamed video; the browser must not open or reopen the webcam.
   - Real-time HUD layout: confidence meters, bounding boxes, gesture label cards.
   - Network diagnostics and WebSocket event rendering.
 - **Contract Interface Delivered**:

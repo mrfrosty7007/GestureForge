@@ -49,6 +49,8 @@ uv run uvicorn backend.main:app --reload
 - Health Endpoint: `http://127.0.0.1:8000/health`
 - OpenAPI Swagger Docs: `http://127.0.0.1:8000/docs`
 
+The backend owns the single headless AI worker and webcam in the normal integrated flow. Do not start another camera process at the same time.
+
 ---
 
 ## 🐍 2. Legacy Setup (pip + venv fallback)
@@ -69,6 +71,8 @@ cp .env.example .env
 uvicorn main:app --reload
 ```
 
+The standalone `ai-model/hand_detection.py --preview` command is reserved for explicit computer-vision debugging. Stop the backend-owned worker first, or set `GESTUREFORGE_DISABLE_AI_WORKER=1`, to avoid duplicate webcam ownership.
+
 ---
 
 ## ⚛️ 3. Frontend Setup
@@ -83,6 +87,8 @@ pnpm --dir frontend install
 pnpm --dir frontend dev
 ```
 Open your browser at **`http://localhost:5173`**.
+
+The dashboard consumes gesture telemetry from `WS /ws/telemetry` and the primary latest-frame video stream from `WS /ws/video`. `GET /video/feed` is retained as an MJPEG fallback for clients that cannot use the binary video WebSocket.
 
 ---
 
@@ -120,4 +126,4 @@ pnpm run build
 Before beginning Phase 1:
 1. Ensure both `uv run pytest backend/tests` and `pnpm run build` execute with zero warnings or errors on your machine.
 2. Confirm browser access to `http://localhost:5173` displays `Backend Gateway Connectivity: online` with active latency measurements.
-3. Grant camera permissions in your web browser for `localhost:5173` in preparation for Phase 1 webcam stream integration.
+3. Verify the backend process has exclusive webcam ownership; the browser dashboard must not request camera permissions.

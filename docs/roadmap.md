@@ -39,11 +39,13 @@ gantt
 ---
 
 ### 🚀 Phase 1: Perception & Frame Ingestion (Next Up)
-- [ ] Connect browser webcam via `navigator.mediaDevices.getUserMedia()`.
-- [ ] Implement WebSocket server in FastAPI for bidirectional frame/landmark streaming.
-- [ ] Initialize MediaPipe Hands in `backend/gesture.py`.
-- [ ] Real-time detection and extraction of 21 3D hand landmarks.
-- [ ] Render hand skeleton lines on React HUD canvas.
+- [x] Keep the headless backend AI worker as the single webcam owner.
+- [x] Implement separate FastAPI WebSocket paths for telemetry and latest-frame video streaming.
+- [x] Initialize MediaPipe Hands in the AI worker pipeline.
+- [x] Real-time detection and extraction of 21 3D hand landmarks.
+- [x] Render streamed video and gesture telemetry on the React HUD canvas.
+
+The binary `WS /ws/video` path is the primary dashboard video stream. `GET /video/feed` is retained as an MJPEG fallback; the browser never opens the webcam directly.
 
 ---
 
