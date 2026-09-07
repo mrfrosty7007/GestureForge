@@ -2,22 +2,66 @@
 
 Tracks up to 2 hands in real-time, extracts 21 3D landmarks with skeletal
 connection lines, classifies hand poses into discrete gestures (Palm, Fist,
-Thumbs Up, One Finger, Peace) using geometric rules, and renders live HUD
-telemetry (FPS, detected gesture, confidence).
+Thumbs Up, One Finger, Peace) using geometric rules, and dispatches detected
+gestures to the GestureForge FastAPI backend with smart debouncing.
 
 Press 'Q' to quit cleanly.
 """
 
 import sys
+import threading
 import time
+from datetime import UTC, datetime
 
 import cv2
 import mediapipe as mp
+import requests
 from gesture_classifier import GestureClassifier
+
+# Backend API Configuration
+BACKEND_URL = "http://127.0.0.1:8000/gesture"
+REQUEST_TIMEOUT_SEC = 0.5
+DEBOUNCE_COOLDOWN_SEC = 1.0
+VALID_GESTURES = {"Palm", "Fist", "Thumbs Up", "One Finger", "Peace"}
+
+
+def send_gesture_async(gesture: str, confidence: str) -> None:
+    """Dispatches a gesture prediction payload to the FastAPI backend
+
+    in a non-blocking background thread.
+    """
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    payload = {
+        "gesture": gesture,
+        "confidence": confidence,
+        "timestamp": timestamp,
+    }
+
+    def _worker():
+        try:
+            resp = requests.post(
+                BACKEND_URL,
+                json=payload,
+                timeout=REQUEST_TIMEOUT_SEC,
+            )
+            if resp.status_code == 200:
+                print(f"Sent: {gesture} ({confidence})")
+            else:
+                print(
+                    f"[API Warning] Backend returned status {resp.status_code} for {gesture}"
+                )
+        except requests.exceptions.RequestException as exc:
+            # Print non-fatal error message without interrupting webcam feed
+            print(
+                f"[API Error] Could not reach backend at {BACKEND_URL}: {type(exc).__name__}"
+            )
+
+    # Launch daemon thread so network I/O never blocks the camera loop
+    threading.Thread(target=_worker, daemon=True).start()
 
 
 def run_hand_detection():
-    """Runs the real-time hand detection and gesture recognition loop."""
+    """Runs the real-time hand detection, gesture recognition, and backend streaming loop."""
     # Initialize MediaPipe Hands solution and drawing utilities
     mp_hands = mp.solutions.hands
     mp_drawing = mp.solutions.drawing_utils
@@ -35,14 +79,16 @@ def run_hand_detection():
         )
         sys.exit(1)
 
-    print("=" * 60)
+    print("=" * 65)
     print("GestureForge — Real-Time Hand Detection & Gesture Recognition")
     print("Supported Gestures: Palm | Fist | Thumbs Up | One Finger | Peace")
-    print("Tracking up to 2 hands with 21 landmarks each.")
+    print(f"Streaming to Backend: {BACKEND_URL}")
     print("Press 'Q' in the video window to quit.")
-    print("=" * 60)
+    print("=" * 65)
 
     prev_time = time.time()
+    last_sent_gesture = None
+    last_sent_time = 0.0
 
     # Configure MediaPipe Hands
     with mp_hands.Hands(
@@ -57,6 +103,8 @@ def run_hand_detection():
                 if not success:
                     print("Warning: Empty frame received from webcam. Skipping...")
                     continue
+
+                current_time = time.time()
 
                 # Flip the frame horizontally for an intuitive mirror view
                 frame = cv2.flip(frame, 1)
@@ -93,7 +141,7 @@ def run_hand_detection():
                         # 2. Classify gesture using geometric landmark rules
                         gesture, confidence = classifier.classify(hand_landmarks)
 
-                        # Track primary hand gesture for main HUD overlay
+                        # Track primary hand gesture for main HUD overlay and backend streaming
                         if hand_idx == 0:
                             active_gesture = gesture
                             active_confidence = confidence
@@ -113,8 +161,25 @@ def run_hand_detection():
                             cv2.LINE_AA,
                         )
 
+                # -------------------------------------------------------------
+                # Smart Debounced API Streaming to Backend
+                # -------------------------------------------------------------
+                if active_gesture in VALID_GESTURES:
+                    # Send only if gesture changed OR cooldown expired
+                    gesture_changed = active_gesture != last_sent_gesture
+                    cooldown_expired = (
+                        current_time - last_sent_time
+                    ) >= DEBOUNCE_COOLDOWN_SEC
+
+                    if gesture_changed or cooldown_expired:
+                        send_gesture_async(active_gesture, active_confidence)
+                        last_sent_gesture = active_gesture
+                        last_sent_time = current_time
+                else:
+                    # Reset tracker when no valid gesture is detected so next gesture sends immediately
+                    last_sent_gesture = None
+
                 # Calculate live FPS
-                current_time = time.time()
                 fps = (
                     1.0 / (current_time - prev_time)
                     if (current_time - prev_time) > 0
