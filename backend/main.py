@@ -1,4 +1,7 @@
-"""Main entry point for GestureForge FastAPI backend."""
+"""Main entry point for GestureForge FastAPI backend.
+
+Configures CORS, registers API routers, and provides Swagger documentation.
+"""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,12 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from routes import router
 
 app = FastAPI(
-    title="GestureForge",
-    description="Real-time AI-powered hand gesture recognition backend",
+    title="GestureForge Backend",
+    description="Lightweight FastAPI gateway for GestureForge real-time gesture telemetry",
     version="0.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
-# Enable CORS for frontend dashboard communication
+# Enable CORS to allow the local frontend (Vite/React) to connect seamlessly
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,13 +25,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount API routes
 app.include_router(router)
-
-
-@app.get("/")
-def read_root():
-    """Root status endpoint."""
-    return {
-        "message": "GestureForge Backend is running",
-        "service": "GestureForge Backend",
-    }
