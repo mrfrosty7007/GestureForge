@@ -50,9 +50,11 @@ feature/dev4-dataset   ──┘
 
 ---
 
-## 🚀 Quick Start (Local Setup)
+## 🚀 Quick Start (Full Stack MVP)
 
-### 1. Backend Setup
+Run the 3 modules in separate terminals:
+
+### 1. Backend Gateway (Terminal 1)
 
 ```bash
 cd backend
@@ -65,14 +67,14 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8000
 ```
 
 - API Base: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- Health Endpoint: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
 - Swagger Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 
-### 2. Frontend Setup (in a separate terminal)
+### 2. Frontend Cyber Dashboard (Terminal 2)
 
 ```bash
 cd frontend
@@ -80,12 +82,39 @@ pnpm install
 pnpm run dev
 ```
 
-- Web Dashboard: [http://localhost:5173](http://localhost:5173)
+- Cyber Operations HUD: [http://localhost:5173](http://localhost:5173)
+
+### 3. Real-Time AI Camera Pipeline (Terminal 3)
+
+```bash
+cd ai-model
+pip install -r requirements.txt
+python hand_detection.py
+```
+
+- Tracks 21 hand landmarks, classifies 5 gestures in real-time, and streams debounced telemetry to the FastAPI gateway.
+- Press `Q` in the camera viewport to quit cleanly.
 
 ---
 
-## 🎯 Next Steps
+## 🖐️ Recognized Gestures
 
-* **Phase 1 — Task 2**: MediaPipe 21 hand landmarks detection and webcam capture integration.
-* **Phase 2**: Multi-class gesture dataset collection and classification model training.
-* **Phase 3**: Telemetry HUD, audio/visual triggers, and final hackathon presentation.
+| Gesture | Description | Supported In |
+|:---|:---|:---:|
+| ✋ **Palm** | All 5 fingers extended outward | v1.0.0-MVP |
+| ✊ **Fist** | All 4 fingers folded, compact cluster, thumb wrapped | v1.0.0-MVP |
+| 👍 **Thumbs Up** | Thumb elevated & separated, 4 fingers folded | v1.0.0-MVP |
+| ☝️ **One Finger** | Only index finger extended upward | v1.0.0-MVP |
+| ✌️ **Peace** | Index and middle fingers extended | v1.0.0-MVP |
+
+---
+
+## 🎯 Roadmap & Milestones
+
+| Milestone | Status | Details |
+|:---|:---:|:---|
+| **Phase 0 — Foundation** | ✅ Complete | Repository structure, CI workflows, tooling, documentation |
+| **Phase 1 — Perception MVP** | ✅ Complete | MediaPipe tracking, 5 gestures, FastAPI gateway, React Cyber HUD |
+| **Phase 2 — Machine Learning** | ⏳ Next | Custom gesture dataset capture, feature extraction, ML classifiers |
+| **Phase 3 — System Polish** | ⏳ Planned | Expanded gestures, audio/visual triggers, hackathon showcase deck |
+
