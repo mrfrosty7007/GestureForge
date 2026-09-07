@@ -174,13 +174,32 @@ class GestureClassifier:
             "pinky": pinky_extended,
         }
 
+    def _fingertip_cluster_spread(self, landmarks: list[Any]) -> float:
+        """Computes the average pairwise Euclidean distance between the four
+
+        fingertips: Index (8), Middle (12), Ring (16), Pinky (20).
+        """
+        tips = [
+            landmarks[self.INDEX_TIP],
+            landmarks[self.MIDDLE_TIP],
+            landmarks[self.RING_TIP],
+            landmarks[self.PINKY_TIP],
+        ]
+        total_dist = 0.0
+        pair_count = 0
+        for i in range(len(tips)):
+            for j in range(i + 1, len(tips)):
+                total_dist += self._distance(tips[i], tips[j])
+                pair_count += 1
+        return total_dist / pair_count if pair_count > 0 else 0.0
+
     def classify_raw(self, landmarks: Any) -> tuple[str, str]:
         """Classifies the hand gesture from landmarks without temporal smoothing.
 
         Recognized gestures:
         - Palm: All five fingers extended.
-        - Fist: All fingers folded.
-        - Thumbs Up: Thumb pointing up; Index, Middle, Ring, Pinky folded.
+        - Fist: All fingers folded, compact fingertip cluster, thumb wrapped.
+        - Thumbs Up: Thumb pointing up and separated; Index, Middle, Ring, Pinky folded.
         - One Finger: Only index finger extended.
         - Peace: Index and Middle fingers extended; Ring and Pinky folded.
 
@@ -205,50 +224,74 @@ class GestureClassifier:
         is_ring_ext = states["ring"]
         is_pinky_ext = states["pinky"]
 
-        # Rule 1: Thumbs Up
-        # Thumb pointing up while index, middle, ring, pinky are folded
-        if is_thumb_up and (
+        # Reference palm size for scale-invariant distance thresholds
+        palm_size = self._distance(lm_list[self.WRIST], lm_list[self.MIDDLE_MCP])
+        if palm_size < 0.05:
+            palm_size = 0.30
+
+        # Cluster spread among the 4 fingertips (8, 12, 16, 20)
+        cluster_spread = self._fingertip_cluster_spread(lm_list)
+        is_compact_cluster = cluster_spread <= max(0.20, 0.50 * palm_size)
+
+        # Distance from thumb tip (4) to index MCP (5)
+        dist_thumb_index_mcp = self._distance(
+            lm_list[self.THUMB_TIP], lm_list[self.INDEX_MCP]
+        )
+        thumb_close_to_index = dist_thumb_index_mcp <= max(0.12, 0.38 * palm_size)
+        thumb_separated_from_index = dist_thumb_index_mcp > max(0.12, 0.38 * palm_size)
+
+        all_four_folded = (
             not is_index_ext
             and not is_middle_ext
             and not is_ring_ext
             and not is_pinky_ext
-        ):
-            # Verify thumb tip is distinctly elevated above index knuckle
-            if lm_list[self.THUMB_TIP].y < lm_list[self.INDEX_MCP].y:
-                return "Thumbs Up", "High"
-            return "Thumbs Up", "Medium"
+        )
 
-        # Rule 2: Palm
-        # All 5 fingers extended (or 4 main fingers extended with relaxed thumb)
+        # -----------------------------------------------------------------
+        # Rule 1: Palm (all 4 main fingers extended)
+        # -----------------------------------------------------------------
         if is_index_ext and is_middle_ext and is_ring_ext and is_pinky_ext:
             if is_thumb_ext:
                 return "Palm", "High"
             return "Palm", "Medium"
 
-        # Rule 3: Peace
-        # Index and Middle extended; Ring and Pinky folded
+        # -----------------------------------------------------------------
+        # Rule 2: Peace (index and middle extended; ring and pinky folded)
+        # -----------------------------------------------------------------
         if is_index_ext and is_middle_ext and not is_ring_ext and not is_pinky_ext:
             if not is_thumb_up:
                 return "Peace", "High"
             return "Peace", "Medium"
 
-        # Rule 4: One Finger
-        # Only Index extended; Middle, Ring, Pinky folded
+        # -----------------------------------------------------------------
+        # Rule 3: One Finger (only index extended; middle, ring, pinky folded)
+        # -----------------------------------------------------------------
         if is_index_ext and not is_middle_ext and not is_ring_ext and not is_pinky_ext:
             if not is_thumb_up:
                 return "One Finger", "High"
             return "One Finger", "Medium"
 
-        # Rule 5: Fist
-        # All fingers folded inward
-        if (
-            not is_index_ext
-            and not is_middle_ext
-            and not is_ring_ext
-            and not is_pinky_ext
-            and not is_thumb_up
-        ):
-            return "Fist", "High"
+        # -----------------------------------------------------------------
+        # Decision Priority when all four fingers are curled:
+        # Evaluate Fist rule BEFORE Thumbs Up rule
+        # -----------------------------------------------------------------
+        if all_four_folded:
+            # Rule 4: Fist
+            # Require compact fingertip cluster AND thumb tip close to index MCP (or thumb down)
+            if is_compact_cluster and (thumb_close_to_index or not is_thumb_up):
+                return "Fist", "High"
+
+            # Rule 5: Thumbs Up
+            # Only allow Thumbs Up if the thumb clearly points upward
+            # and is sufficiently separated from index MCP
+            if is_thumb_up and thumb_separated_from_index:
+                if lm_list[self.THUMB_TIP].y < lm_list[self.INDEX_MCP].y:
+                    return "Thumbs Up", "High"
+                return "Thumbs Up", "Medium"
+
+            # Secondary fallback: Fist if thumb is not pointing up
+            if not is_thumb_up:
+                return "Fist", "High"
 
         return "Unknown", "Low"
 

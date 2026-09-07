@@ -202,6 +202,64 @@ def test_fist_raw_classification() -> None:
     assert confidence == "High"
 
 
+def test_front_facing_fist() -> None:
+    """Tests that a front-facing closed fist is robustly recognized as Fist,
+
+    even when thumb wraps diagonally across the front of the knuckles.
+    """
+    classifier = GestureClassifier()
+    lm = create_base_landmarks()
+    create_folded_fingers(lm)
+    # Thumb tip wrapped close to Index MCP (5)
+    lm[1] = MockLandmark(0.44, 0.72)
+    lm[2] = MockLandmark(0.42, 0.62)
+    lm[3] = MockLandmark(0.45, 0.54)
+    lm[4] = MockLandmark(0.48, 0.50)  # Close to Index MCP (0.46, 0.48)
+    gesture, confidence = classifier.classify_raw(lm)
+    assert gesture == "Fist"
+    assert confidence == "High"
+
+
+def test_side_facing_fist() -> None:
+    """Tests that a side-facing fist is correctly recognized as Fist."""
+    classifier = GestureClassifier()
+    lm = create_base_landmarks()
+    create_folded_fingers(lm)
+    lm[1] = MockLandmark(0.44, 0.72)
+    lm[2] = MockLandmark(0.42, 0.62)
+    lm[3] = MockLandmark(0.44, 0.54)
+    lm[4] = MockLandmark(0.44, 0.52)  # Thumb resting along index finger
+    gesture, confidence = classifier.classify_raw(lm)
+    assert gesture == "Fist"
+    assert confidence == "High"
+
+
+def test_tilted_fist() -> None:
+    """Tests that a rotated/tilted closed fist is correctly recognized as Fist."""
+    import math
+
+    classifier = GestureClassifier()
+    lm = create_base_landmarks()
+    create_folded_fingers(lm)
+    lm[1] = MockLandmark(0.44, 0.72)
+    lm[2] = MockLandmark(0.42, 0.62)
+    lm[3] = MockLandmark(0.45, 0.54)
+    lm[4] = MockLandmark(0.48, 0.50)
+
+    # Rotate all landmarks by 30 degrees around center
+    rad = math.radians(30)
+    cx, cy = 0.5, 0.6
+    tilted_lm = []
+    for p in lm:
+        nx = cx + (p.x - cx) * math.cos(rad) - (p.y - cy) * math.sin(rad)
+        ny = cy + (p.x - cx) * math.sin(rad) + (p.y - cy) * math.cos(rad)
+        tilted_lm.append(MockLandmark(nx, ny, p.z))
+
+    gesture, confidence = classifier.classify_raw(tilted_lm)
+    assert gesture == "Fist"
+    assert confidence == "High"
+
+
 def test_palm_peace_one_finger_preserved() -> None:
     """Ensures Palm, Peace, and One Finger gestures are not broken."""
     classifier = GestureClassifier()
