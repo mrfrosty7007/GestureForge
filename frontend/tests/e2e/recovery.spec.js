@@ -1,83 +1,79 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
-  test('gracefully renders fallback UI when camera permission is denied', async ({
+  test('browser never requests camera permissions or calls getUserMedia', async ({
     page,
   }) => {
-    // Inject mock that rejects getUserMedia with NotAllowedError
+    // Intercept getUserMedia and fail if called
     await page.addInitScript(() => {
+      window._getUserMediaCalled = false;
       if (navigator.mediaDevices) {
-        navigator.mediaDevices.getUserMedia = () =>
-          Promise.reject(
-            new DOMException('Permission denied by user', 'NotAllowedError')
-          );
+        navigator.mediaDevices.getUserMedia = () => {
+          window._getUserMediaCalled = true;
+          return Promise.reject(new Error('Browser camera access must not be requested!'));
+        };
       }
     });
 
     await page.goto('/');
 
-    // Verify graceful fallback UI in CameraPanel
-    await expect(page.getByText('CAMERA PERMISSION DENIED')).toBeVisible();
-    await expect(
-      page.getByText(/Camera access was denied|blocked by your browser/i)
-    ).toBeVisible();
-
-    // Verify Retry button is present and clickable
-    const retryBtn = page.getByRole('button', { name: /RETRY PERMISSION/i });
-    await expect(retryBtn).toBeVisible();
-    await expect(retryBtn).toBeEnabled();
-
-    // Verify entire dashboard layout remains intact without unhandled exceptions
+    // Verify page loads cleanly without any camera request
     await expect(page.locator('header')).toBeVisible();
-    await expect(page.getByText('SYSTEM TELEMETRY')).toBeVisible();
+    await expect(page.getByText('LIVE CAMERA FEED')).toBeVisible();
+
+    const wasCalled = await page.evaluate(() => window._getUserMediaCalled);
+    expect(wasCalled).toBe(false);
   });
 
-  test('gracefully renders fallback UI when no webcam device is detected', async ({
+  test('gracefully handles manual stream disconnection and reconnects on demand', async ({
     page,
   }) => {
-    // Inject mock that rejects getUserMedia with NotFoundError
-    await page.addInitScript(() => {
-      if (navigator.mediaDevices) {
-        navigator.mediaDevices.getUserMedia = () =>
-          Promise.reject(
-            new DOMException('No camera device found', 'NotFoundError')
-          );
-      }
-    });
-
     await page.goto('/');
 
-    // Verify Device Not Found fallback UI
-    await expect(page.getByText('NO WEBCAM DETECTED')).toBeVisible();
-    await expect(
-      page.getByText(/No compatible webcam device detected|No camera hardware/i)
-    ).toBeVisible();
+    // Wait for initial connection
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
 
-    const recheckBtn = page.getByRole('button', { name: /RECHECK DEVICES/i });
-    await expect(recheckBtn).toBeVisible();
-    await expect(recheckBtn).toBeEnabled();
+    // Click Disconnect Stream button
+    const disconnectBtn = page.getByRole('button', { name: /DISCONNECT STREAM/i });
+    await expect(disconnectBtn).toBeVisible();
+    await disconnectBtn.click();
+
+    // Verify stream transitions to STREAM OFFLINE
+    await expect(page.getByText('STREAM OFFLINE').first()).toBeVisible();
+
+    // Verify Connect Stream button appears
+    const connectBtn = page.getByRole('button', { name: /CONNECT STREAM/i }).first();
+    await expect(connectBtn).toBeVisible();
+
+    // Click Connect Stream to restore
+    await connectBtn.click();
+
+    // Verify stream transitions back to STREAM ONLINE
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('gracefully handles general camera hardware error', async ({ page }) => {
-    await page.addInitScript(() => {
-      if (navigator.mediaDevices) {
-        navigator.mediaDevices.getUserMedia = () =>
-          Promise.reject(new Error('Hardware I/O error'));
+  test('gracefully handles stream interruption and shows reconnecting state', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
+
+    // Force close active video WebSocket to simulate connection loss
+    await page.evaluate(() => {
+      if (window._videoWebSocket) {
+        window._videoWebSocket.close();
       }
     });
 
-    await page.goto('/');
-
-    await expect(page.getByText('CAMERA FEED UNAVAILABLE')).toBeVisible();
-    const retryBtn = page.getByRole('button', { name: /RETRY CAMERA/i });
-    await expect(retryBtn).toBeVisible();
+    // Should display STREAM RECONNECTING or recover to STREAM ONLINE
+    await expect(
+      page.locator('text=STREAM RECONNECTING').or(page.locator('text=STREAM ONLINE')).first()
+    ).toBeVisible();
   });
 
   test('displays Gateway Offline status and recovers connection when available', async ({
     page,
   }) => {
-    await page.context().grantPermissions(['camera']);
-
     // Visit page normally and confirm initial live connection
     await page.goto('/');
     await expect(page.getByText('WS TELEMETRY LIVE')).toBeVisible({
@@ -86,9 +82,8 @@ test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
 
     // Simulate WebSocket interruption by evaluating client-side close
     await page.evaluate(() => {
-      // Find active WebSocket or force closure via global/window
-      if (window._wsInstance) {
-        window._wsInstance.close();
+      if (window._telemetryWebSocket) {
+        window._telemetryWebSocket.close();
       }
     });
 

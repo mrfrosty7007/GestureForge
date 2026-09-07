@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.models import GesturePrediction, HandGesture
-from backend.routes import health_check, manager
+from backend.routes import health_check, manager, video_manager
 from backend.storage import storage
 
 
@@ -418,3 +418,47 @@ def test_post_gesture_telemetry_heartbeat_zero_hands() -> None:
     assert data["hands"] == []
     assert data["telemetry"]["fps"] == 29.5
     assert data["telemetry"]["hand_count"] == 0
+
+
+def test_websocket_video_connect_and_ping() -> None:
+    """Test WebSocket /ws/video connects, tracks connection, and responds to ping."""
+    client = TestClient(app)
+    initial_count = len(video_manager.active_connections)
+
+    with client.websocket_connect("/ws/video") as ws:
+        assert len(video_manager.active_connections) == initial_count + 1
+        ws.send_text("ping")
+        reply = ws.receive_text()
+        assert reply == "pong"
+
+    assert len(video_manager.active_connections) == initial_count
+
+
+def test_websocket_video_frame_broadcast() -> None:
+    """Test publisher sends binary JPEG frame and subscriber receives it."""
+    client = TestClient(app)
+    fake_jpeg = (
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00\x60\x00\x60\x00\x00\xff\xdb"
+    )
+
+    with (
+        client.websocket_connect("/ws/video") as sub,
+        client.websocket_connect("/ws/video") as pub,
+    ):
+        # Publisher sends binary bytes
+        pub.send_bytes(fake_jpeg)
+
+        # Subscriber receives binary bytes
+        received = sub.receive_bytes()
+        assert received == fake_jpeg
+
+
+def test_websocket_video_cached_frame_on_connect() -> None:
+    """Test newly connected viewer receives cached latest frame immediately."""
+    client = TestClient(app)
+    cached_frame = b"\xff\xd8\xff\xe0\xaa\xbb\xcc"
+    video_manager._latest_frame = cached_frame
+
+    with client.websocket_connect("/ws/video") as ws:
+        received = ws.receive_bytes()
+        assert received == cached_frame

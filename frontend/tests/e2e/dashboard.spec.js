@@ -1,11 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 2 — Dashboard Render & Connectivity', () => {
-  test.beforeEach(async ({ page }) => {
-    // Grant camera permissions for the test origin
-    await page.context().grantPermissions(['camera']);
-  });
-
   test('dashboard loads core brand, header, and ops status', async ({ page }) => {
     await page.goto('/');
 
@@ -18,7 +13,7 @@ test.describe('Part 2 — Dashboard Render & Connectivity', () => {
     ).toBeVisible();
   });
 
-  test('camera panel renders with viewport, reticles, and controls', async ({
+  test('camera panel renders with canvas viewport, reticles, and controls', async ({
     page,
   }) => {
     await page.goto('/');
@@ -26,16 +21,16 @@ test.describe('Part 2 — Dashboard Render & Connectivity', () => {
     // Panel Header
     await expect(page.getByText('LIVE CAMERA FEED')).toBeVisible();
     await expect(
-      page.getByText('VIEWPORT 01 • EMBEDDED WEBCAM / MEDIAPIPE AI')
+      page.getByText('VIEWPORT 01 • UNIFIED WEBCAM PIPELINE / MEDIAPIPE AI')
     ).toBeVisible();
 
-    // Viewport Video Element
-    const video = page.locator('video');
-    await expect(video).toBeAttached();
+    // Viewport Canvas Element (Unified Pipeline)
+    const canvas = page.locator('canvas');
+    await expect(canvas).toBeAttached();
 
     // Feed status ticker at bottom of camera panel
     await expect(page.getByText('FEED STATUS:')).toBeVisible();
-    await expect(page.getByText('STREAM: WS /ws/telemetry')).toBeVisible();
+    await expect(page.getByText('STREAM: WS /ws/video')).toBeVisible();
   });
 
   test('WebSocket connects successfully and updates top bar & telemetry status', async ({

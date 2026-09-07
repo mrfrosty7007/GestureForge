@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 3 — Real-Time Gesture Synchronization via WebSocket', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.context().grantPermissions(['camera']);
-  });
-
   test('synchronizes Palm gesture from backend to dashboard HUD instantly', async ({
     page,
     request,

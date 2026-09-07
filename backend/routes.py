@@ -4,6 +4,7 @@ Provides endpoints for service health, root status, gesture ingestion,
 polling the latest detected gesture, and real-time WebSocket telemetry streaming.
 """
 
+import contextlib
 import logging
 from typing import Any
 
@@ -65,6 +66,57 @@ class ConnectionManager:
 
 # Global singleton connection manager for telemetry broadcast
 manager = ConnectionManager()
+
+
+class VideoStreamManager:
+    """Manages active WebSocket connections for binary video streaming."""
+
+    def __init__(self) -> None:
+        self.active_connections: list[WebSocket] = []
+        self._latest_frame: bytes | None = None
+
+    async def connect(self, websocket: WebSocket) -> None:
+        """Accepts a new WebSocket connection and registers it."""
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        logger.info(
+            "Video WebSocket client connected. Active connections: %d",
+            len(self.active_connections),
+        )
+        if self._latest_frame is not None:
+            with contextlib.suppress(Exception):
+                await websocket.send_bytes(self._latest_frame)
+
+    def disconnect(self, websocket: WebSocket) -> None:
+        """Safely removes a disconnected WebSocket client."""
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+            logger.info(
+                "Video WebSocket client disconnected. Active connections: %d",
+                len(self.active_connections),
+            )
+
+    async def broadcast_frame(
+        self, frame_bytes: bytes, sender: WebSocket | None = None
+    ) -> None:
+        """Broadcasts binary JPEG frame bytes to all subscribed clients."""
+        self._latest_frame = frame_bytes
+        dead_connections: list[WebSocket] = []
+        for connection in list(self.active_connections):
+            if connection is sender:
+                continue
+            try:
+                await connection.send_bytes(frame_bytes)
+            except Exception as exc:
+                logger.warning("Failed to send frame to WebSocket client: %s", exc)
+                dead_connections.append(connection)
+
+        for dead in dead_connections:
+            self.disconnect(dead)
+
+
+# Global singleton video stream manager
+video_manager = VideoStreamManager()
 
 
 @router.get("/", tags=["Status"])
@@ -183,3 +235,25 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
     except Exception as exc:
         logger.warning("WebSocket error encountered: %s", exc)
         manager.disconnect(websocket)
+
+
+@router.websocket("/ws/video")
+async def websocket_video(websocket: WebSocket) -> None:
+    """Real-time binary video streaming endpoint.
+
+    Accepts binary JPEG frames from publisher clients (AI vision pipeline)
+    and broadcasts them to all connected subscriber clients (React HUD).
+    """
+    await video_manager.connect(websocket)
+    try:
+        while True:
+            message = await websocket.receive()
+            if "bytes" in message and message["bytes"]:
+                await video_manager.broadcast_frame(message["bytes"], sender=websocket)
+            elif "text" in message and message["text"] == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        video_manager.disconnect(websocket)
+    except Exception as exc:
+        logger.warning("Video WebSocket error encountered: %s", exc)
+        video_manager.disconnect(websocket)

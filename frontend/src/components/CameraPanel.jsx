@@ -5,10 +5,11 @@ import {
   Crosshair,
   Zap,
   Shield,
-  AlertTriangle,
   RefreshCw,
   Radio,
   Layers,
+  Power,
+  Play,
 } from 'lucide-react';
 
 export default function CameraPanel({
@@ -17,108 +18,137 @@ export default function CameraPanel({
   handsDetected = 0,
   telemetry = null,
 }) {
-  const [cameraState, setCameraState] = useState('loading'); // 'loading' | 'active' | 'denied' | 'notfound' | 'error'
+  // 'active' (STREAM ONLINE) | 'reconnecting' (STREAM RECONNECTING) | 'offline' (STREAM OFFLINE)
+  const [streamState, setStreamState] = useState('reconnecting');
   const [errorMessage, setErrorMessage] = useState('');
-  const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const streamRef = useRef(null);
+  const wsRef = useRef(null);
+  const reconnectTimeoutRef = useRef(null);
+  const manualDisconnectRef = useRef(false);
 
   const hasGesture = gestureData && gestureData.gesture && gestureData.gesture !== 'None';
   const primaryGesture = hasGesture ? gestureData.gesture : null;
   const hands = gestureData && Array.isArray(gestureData.hands) ? gestureData.hands : [];
 
-  // Stop any existing camera tracks cleanly
-  const stopCurrentStream = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch {
-          // ignore
-        }
-      });
-      streamRef.current = null;
+  // Safely close active video WebSocket
+  const closeWebSocket = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
+    if (wsRef.current) {
+      try {
+        wsRef.current.onclose = null;
+        wsRef.current.onerror = null;
+        wsRef.current.onmessage = null;
+        wsRef.current.close();
+      } catch {
+        // ignore
+      }
+      wsRef.current = null;
+      if (typeof window !== 'undefined') {
+        window._videoWebSocket = null;
+      }
     }
   }, []);
 
-  // Request browser webcam access using navigator.mediaDevices.getUserMedia
-  const startCamera = useCallback(async () => {
-    stopCurrentStream();
-    setCameraState('loading');
+  // Connect to backend WebSocket /ws/video
+  const connectStream = useCallback(() => {
+    closeWebSocket();
+    manualDisconnectRef.current = false;
+    setStreamState('reconnecting');
     setErrorMessage('');
 
-    if (
-      typeof navigator === 'undefined' ||
-      !navigator.mediaDevices ||
-      !navigator.mediaDevices.getUserMedia
-    ) {
-      setCameraState('error');
-      setErrorMessage('Browser does not support navigator.mediaDevices.getUserMedia API.');
-      return;
-    }
+    const host = window.location.hostname || '127.0.0.1';
+    const wsUrl = `ws://${host}:8000/ws/video`;
 
     try {
-      const constraints = {
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user',
-        },
-        audio: false,
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = 'blob';
+      wsRef.current = ws;
+      if (typeof window !== 'undefined') {
+        window._videoWebSocket = ws;
+      }
+
+      ws.onopen = () => {
+        setStreamState('active');
+        setErrorMessage('');
       };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch {
-          // Some browsers require user interaction; muted video usually autoplays
+      ws.onmessage = (event) => {
+        if (event.data instanceof Blob) {
+          createImageBitmap(event.data)
+            .then((bitmap) => {
+              if (!canvasRef.current) {
+                bitmap.close();
+                return;
+              }
+              const canvas = canvasRef.current;
+              if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+                canvas.width = bitmap.width;
+                canvas.height = bitmap.height;
+              }
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(bitmap, 0, 0);
+              }
+              // Immediately close the ImageBitmap to prevent GPU/DOM memory leaks
+              bitmap.close();
+              setStreamState('active');
+            })
+            .catch((err) => {
+              console.warn('Frame render error:', err);
+            });
         }
-      }
-      setCameraState('active');
+      };
+
+      ws.onerror = () => {
+        if (!manualDisconnectRef.current) {
+          setStreamState('reconnecting');
+        }
+      };
+
+      ws.onclose = () => {
+        if (!manualDisconnectRef.current) {
+          setStreamState('reconnecting');
+          // Automatically attempt reconnection every 2.5 seconds
+          reconnectTimeoutRef.current = setTimeout(() => {
+            connectStream();
+          }, 2500);
+        } else {
+          setStreamState('offline');
+        }
+      };
     } catch (err) {
-      const errorName = err.name || '';
-      if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
-        setCameraState('denied');
-        setErrorMessage(
-          'Camera access was denied. Please allow camera permissions in your browser.'
-        );
-      } else if (
-        errorName === 'NotFoundError' ||
-        errorName === 'DevicesNotFoundError' ||
-        errorName === 'OverconstrainedError'
-      ) {
-        setCameraState('notfound');
-        setErrorMessage('No compatible webcam device detected on this system.');
-      } else {
-        setCameraState('error');
-        setErrorMessage(err.message || 'Unable to start camera feed.');
-      }
+      setStreamState('offline');
+      setErrorMessage(err.message || 'Failed to connect to video stream');
     }
-  }, [stopCurrentStream]);
+  }, [closeWebSocket]);
 
-  // Lifecycle: initialize camera on mount, stop tracks on unmount
+  // User manual control actions
+  const handleDisconnect = useCallback(() => {
+    manualDisconnectRef.current = true;
+    closeWebSocket();
+    setStreamState('offline');
+  }, [closeWebSocket]);
+
+  const handleConnect = useCallback(() => {
+    connectStream();
+  }, [connectStream]);
+
+  const handleRetry = useCallback(() => {
+    connectStream();
+  }, [connectStream]);
+
+  // Mount / Unmount lifecycle
   useEffect(() => {
-    let isMounted = true;
-
-    async function init() {
-      if (isMounted) {
-        await startCamera();
-      }
-    }
-    init();
+    connectStream();
 
     return () => {
-      isMounted = false;
-      stopCurrentStream();
+      manualDisconnectRef.current = true;
+      closeWebSocket();
     };
-  }, [startCamera, stopCurrentStream]);
+  }, [connectStream, closeWebSocket]);
 
   return (
     <div className="cyber-panel cyber-panel-glow cyber-corner-reticle rounded-2xl p-4 md:p-6 relative flex flex-col justify-between overflow-hidden min-h-[460px] lg:min-h-[520px]">
@@ -131,24 +161,66 @@ export default function CameraPanel({
           <div>
             <h3 className="font-heading font-bold text-sm md:text-base tracking-wider text-white flex items-center gap-2">
               LIVE CAMERA FEED
-              {cameraState === 'active' && (
+              {streamState === 'active' && (
                 <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded bg-cyber-teal/10 text-cyber-teal border border-cyber-teal/30">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyber-teal status-dot" />
-                  ONLINE
+                  STREAM ONLINE
+                </span>
+              )}
+              {streamState === 'reconnecting' && (
+                <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded bg-cyber-warning/10 text-cyber-warning border border-cyber-warning/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyber-warning animate-pulse" />
+                  STREAM RECONNECTING
+                </span>
+              )}
+              {streamState === 'offline' && (
+                <span className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded bg-cyber-danger/10 text-cyber-danger border border-cyber-danger/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyber-danger" />
+                  STREAM OFFLINE
                 </span>
               )}
             </h3>
             <span className="font-mono text-[11px] text-cyber-muted tracking-wide">
-              VIEWPORT 01 • EMBEDDED WEBCAM / MEDIAPIPE AI
+              VIEWPORT 01 • UNIFIED WEBCAM PIPELINE / MEDIAPIPE AI
             </span>
           </div>
         </div>
 
         <div className="flex items-center gap-2 font-mono text-xs">
+          {/* Stream Control Action Buttons */}
+          {streamState === 'active' ? (
+            <button
+              onClick={handleDisconnect}
+              className="px-2.5 py-1 rounded bg-cyber-danger/10 hover:bg-cyber-danger/20 text-cyber-danger border border-cyber-danger/30 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Disconnect Stream"
+            >
+              <Power size={12} />
+              <span>Disconnect Stream</span>
+            </button>
+          ) : streamState === 'offline' ? (
+            <button
+              onClick={handleConnect}
+              className="px-2.5 py-1 rounded bg-cyber-teal/15 hover:bg-cyber-teal/25 text-cyber-teal border border-cyber-teal/40 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Connect Stream"
+            >
+              <Play size={12} />
+              <span>Connect Stream</span>
+            </button>
+          ) : (
+            <button
+              onClick={handleRetry}
+              className="px-2.5 py-1 rounded bg-cyber-warning/15 hover:bg-cyber-warning/25 text-cyber-warning border border-cyber-warning/40 flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Retry Stream"
+            >
+              <RefreshCw size={12} className="animate-spin" />
+              <span>Retry Stream</span>
+            </button>
+          )}
+
           <span className="px-2.5 py-1 rounded bg-cyber-panel-dark text-cyber-teal border border-cyber-border flex items-center gap-1.5">
             <Crosshair
               size={13}
-              className={`text-cyber-teal ${cameraState === 'active' ? 'animate-spin' : ''}`}
+              className={`text-cyber-teal ${streamState === 'active' ? 'animate-spin' : ''}`}
               style={{ animationDuration: '12s' }}
             />
             {handsDetected > 0
@@ -175,21 +247,12 @@ export default function CameraPanel({
           }}
         />
 
-        {/* Live Video Element */}
-        <video
-          ref={videoRef}
-          autoPlay
-          playsInline
-          muted
-          className={`w-full h-full object-cover transform -scale-x-100 transition-opacity duration-500 ${
-            cameraState === 'active' ? 'opacity-100' : 'opacity-0 absolute'
-          }`}
-        />
-
-        {/* Optional Overlay Canvas for future landmark rendering */}
+        {/* Live Canvas Element rendering WebSocket JPEG frames */}
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none z-10"
+          className={`w-full h-full object-cover transition-opacity duration-300 ${
+            streamState === 'active' ? 'opacity-100' : 'opacity-0 absolute pointer-events-none'
+          }`}
         />
 
         {/* Radar Sweep Scanline Overlay */}
@@ -208,93 +271,55 @@ export default function CameraPanel({
           </div>
         </div>
 
-        {/* Fallback 1: Loading State */}
-        {cameraState === 'loading' && (
+        {/* Fallback 1: Stream Reconnecting / Awaiting frames */}
+        {streamState === 'reconnecting' && (
           <div className="relative z-30 flex flex-col items-center text-center p-6 max-w-sm animate-fadeIn">
-            <div className="w-16 h-16 rounded-2xl bg-cyber-teal/15 border-2 border-cyber-teal flex items-center justify-center text-cyber-teal mb-4 shadow-glow-teal">
-              <RefreshCw size={28} className="animate-spin text-cyber-teal" />
+            <div className="w-16 h-16 rounded-2xl bg-cyber-warning/15 border-2 border-cyber-warning flex items-center justify-center text-cyber-warning mb-4 shadow-lg shadow-cyber-warning/20">
+              <RefreshCw size={28} className="animate-spin text-cyber-warning" />
             </div>
             <h4 className="font-heading font-semibold text-white text-base tracking-wide mb-1">
-              INITIALIZING WEBCAM...
+              STREAM RECONNECTING
             </h4>
-            <p className="font-mono text-xs text-cyber-muted leading-relaxed">
-              Requesting camera stream via <code className="text-cyber-teal">getUserMedia()</code>.
-              Please allow camera permissions if prompted.
+            <p className="font-mono text-xs text-cyber-muted leading-relaxed mb-4">
+              Awaiting video frames from backend via <code className="text-cyber-teal">/ws/video</code>.
+              Run <code className="text-cyber-teal">python ai-model/hand_detection.py</code> to start stream.
             </p>
+            <button
+              onClick={handleRetry}
+              className="px-4 py-2 rounded-lg bg-cyber-warning/20 hover:bg-cyber-warning/30 text-cyber-warning border border-cyber-warning font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+            >
+              <RefreshCw size={12} />
+              Retry Stream
+            </button>
           </div>
         )}
 
-        {/* Fallback 2: Permission Denied */}
-        {cameraState === 'denied' && (
+        {/* Fallback 2: Stream Offline */}
+        {streamState === 'offline' && (
           <div className="relative z-30 flex flex-col items-center text-center p-6 max-w-sm animate-fadeIn">
             <div className="w-16 h-16 rounded-2xl bg-cyber-danger/15 border-2 border-cyber-danger flex items-center justify-center text-cyber-danger mb-4 shadow-lg shadow-cyber-danger/20">
               <CameraOff size={28} />
             </div>
             <h4 className="font-heading font-semibold text-white text-base tracking-wide mb-1">
-              CAMERA PERMISSION DENIED
+              STREAM OFFLINE
             </h4>
             <p className="font-mono text-xs text-cyber-muted leading-relaxed mb-4">
               {errorMessage ||
-                'Camera access was blocked by your browser. Please allow camera permissions to enable live perception.'}
+                'Unified video stream is disconnected. Connect stream to receive live perception.'}
             </p>
             <button
-              onClick={startCamera}
+              onClick={handleConnect}
               className="px-4 py-2 rounded-lg bg-cyber-teal/20 hover:bg-cyber-teal/30 text-cyber-teal border border-cyber-teal font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
             >
-              <RefreshCw size={12} />
-              RETRY PERMISSION
+              <Play size={12} />
+              Connect Stream
             </button>
           </div>
         )}
 
-        {/* Fallback 3: Device Not Found */}
-        {cameraState === 'notfound' && (
-          <div className="relative z-30 flex flex-col items-center text-center p-6 max-w-sm animate-fadeIn">
-            <div className="w-16 h-16 rounded-2xl bg-cyber-warning/15 border-2 border-cyber-warning flex items-center justify-center text-cyber-warning mb-4 shadow-lg shadow-cyber-warning/20">
-              <AlertTriangle size={28} />
-            </div>
-            <h4 className="font-heading font-semibold text-white text-base tracking-wide mb-1">
-              NO WEBCAM DETECTED
-            </h4>
-            <p className="font-mono text-xs text-cyber-muted leading-relaxed mb-4">
-              {errorMessage || 'No camera hardware found. Please connect a USB webcam and retry.'}
-            </p>
-            <button
-              onClick={startCamera}
-              className="px-4 py-2 rounded-lg bg-cyber-teal/20 hover:bg-cyber-teal/30 text-cyber-teal border border-cyber-teal font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <RefreshCw size={12} />
-              RECHECK DEVICES
-            </button>
-          </div>
-        )}
-
-        {/* Fallback 4: General Error */}
-        {cameraState === 'error' && (
-          <div className="relative z-30 flex flex-col items-center text-center p-6 max-w-sm animate-fadeIn">
-            <div className="w-16 h-16 rounded-2xl bg-cyber-danger/15 border-2 border-cyber-danger flex items-center justify-center text-cyber-danger mb-4 shadow-lg shadow-cyber-danger/20">
-              <AlertTriangle size={28} />
-            </div>
-            <h4 className="font-heading font-semibold text-white text-base tracking-wide mb-1">
-              CAMERA FEED UNAVAILABLE
-            </h4>
-            <p className="font-mono text-xs text-cyber-muted leading-relaxed mb-4">
-              {errorMessage}
-            </p>
-            <button
-              onClick={startCamera}
-              className="px-4 py-2 rounded-lg bg-cyber-teal/20 hover:bg-cyber-teal/30 text-cyber-teal border border-cyber-teal font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
-            >
-              <RefreshCw size={12} />
-              RETRY CAMERA
-            </button>
-          </div>
-        )}
-
-        {/* Live Camera Overlays (Active State) */}
-        {cameraState === 'active' && (
+        {/* Top HUD Stats Overlay */}
+        {streamState === 'active' && (
           <>
-            {/* Top HUD Stats Overlay */}
             <div className="absolute top-3 inset-x-3 flex flex-wrap items-center justify-between gap-2 z-20 pointer-events-none">
               {/* Top Left: Live Recording Pill & Dual-Track Status */}
               <div className="flex items-center gap-2">
@@ -314,7 +339,7 @@ export default function CameraPanel({
                 </div>
               </div>
 
-              {/* Top Right: Multi-Hand Real-Time Pills from Task 2.1 */}
+              {/* Top Right: Multi-Hand Real-Time Pills */}
               <div className="flex items-center gap-1.5">
                 {hands.length > 0 ? (
                   hands.map((hand) => (
@@ -405,23 +430,27 @@ export default function CameraPanel({
       <div className="pt-2 flex flex-wrap items-center justify-between gap-2 font-mono text-xs text-cyber-muted">
         <span>
           FEED STATUS:{' '}
-          <span className={isConnected ? 'text-cyber-teal font-semibold' : 'text-cyber-danger'}>
-            {isConnected ? 'TELEMETRY STREAM OPEN' : 'STANDBY MODE'}
-          </span>{' '}
-          • CAMERA:{' '}
           <span
             className={
-              cameraState === 'active'
+              streamState === 'active'
                 ? 'text-cyber-teal font-semibold'
-                : cameraState === 'loading'
+                : streamState === 'reconnecting'
                   ? 'text-cyber-warning'
                   : 'text-cyber-danger'
             }
           >
-            {cameraState.toUpperCase()}
+            {streamState === 'active'
+              ? 'STREAM ONLINE'
+              : streamState === 'reconnecting'
+                ? 'STREAM RECONNECTING'
+                : 'STREAM OFFLINE'}
+          </span>
+          {' • TELEMETRY: '}
+          <span className={isConnected ? 'text-cyber-teal font-semibold' : 'text-cyber-muted'}>
+            {isConnected ? 'SYNCED' : 'STANDBY'}
           </span>
         </span>
-        <span className="text-cyber-teal">STREAM: WS /ws/telemetry</span>
+        <span className="text-cyber-teal">STREAM: WS /ws/video</span>
       </div>
     </div>
   );

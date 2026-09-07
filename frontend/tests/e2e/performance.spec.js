@@ -1,10 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 5 — Performance, Connection Stability & Responsiveness', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.context().grantPermissions(['camera']);
-  });
-
   test('maintains a single active WebSocket connection with zero duplicates', async ({
     page,
   }) => {

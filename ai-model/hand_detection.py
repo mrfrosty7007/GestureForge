@@ -9,6 +9,8 @@ Press 'Q' to quit cleanly.
 """
 
 import collections
+import contextlib
+import queue
 import sys
 import threading
 import time
@@ -21,6 +23,7 @@ from gesture_classifier import GestureClassifier
 
 # Backend API Configuration
 BACKEND_URL = "http://127.0.0.1:8000/gesture"
+VIDEO_WS_URL = "ws://127.0.0.1:8000/ws/video"
 REQUEST_TIMEOUT_SEC = 0.5
 DEBOUNCE_COOLDOWN_SEC = 0.25
 HEARTBEAT_INTERVAL_SEC = 0.5
@@ -34,6 +37,58 @@ VALID_GESTURES = {
     "Rock",
     "Call Me",
 }
+
+
+class VideoFramePublisher:
+    """Asynchronously publishes encoded JPEG frames to the FastAPI WebSocket /ws/video.
+
+    Maintains a single-frame buffer to guarantee zero queuing lag and drops
+    stale frames if the network or client connection slows down. Reconnects
+    automatically if the backend restarts.
+    """
+
+    def __init__(self, ws_url: str = VIDEO_WS_URL) -> None:
+        self.ws_url = ws_url
+        self._queue: queue.Queue[bytes] = queue.Queue(maxsize=1)
+        self._running = True
+        self._connected = False
+        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread.start()
+
+    def send_frame(self, frame_bytes: bytes) -> None:
+        """Enqueues the latest frame for transmission, dropping any stale unsent frame."""
+        if not self._running:
+            return
+        if self._queue.full():
+            with contextlib.suppress(queue.Empty):
+                self._queue.get_nowait()
+        with contextlib.suppress(queue.Full):
+            self._queue.put_nowait(frame_bytes)
+
+    def _worker(self) -> None:
+        """Background daemon thread maintaining the WebSocket connection and sending frames."""
+        import websockets.sync.client
+
+        while self._running:
+            try:
+                with websockets.sync.client.connect(
+                    self.ws_url, close_timeout=1.0
+                ) as ws:
+                    self._connected = True
+                    print(f"[Video Stream] Connected to {self.ws_url}")
+                    while self._running:
+                        try:
+                            frame_data = self._queue.get(timeout=0.5)
+                            ws.send(frame_data)
+                        except queue.Empty:
+                            continue
+            except Exception:
+                self._connected = False
+                time.sleep(1.0)
+
+    def stop(self) -> None:
+        """Stops the background worker thread."""
+        self._running = False
 
 
 def send_gesture_async(
@@ -107,8 +162,9 @@ def run_hand_detection():
     mp_drawing = mp.solutions.drawing_utils
     mp_drawing_styles = mp.solutions.drawing_styles
 
-    # Initialize rule-based gesture classifier
+    # Initialize rule-based gesture classifier and video stream publisher
     classifier = GestureClassifier()
+    video_publisher = VideoFramePublisher()
 
     # Open default webcam (device index 0)
     cap = cv2.VideoCapture(0)
@@ -364,6 +420,10 @@ def run_hand_detection():
                     cv2.LINE_AA,
                 )
 
+                # Encode and stream binary JPEG frame to FastAPI /ws/video
+                _, buffer = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+                video_publisher.send_frame(buffer.tobytes())
+
                 # Display the live webcam window
                 cv2.imshow("GestureForge Hand Detection", frame)
 
@@ -375,6 +435,7 @@ def run_hand_detection():
 
         finally:
             # Clean up and release hardware resources
+            video_publisher.stop()
             cap.release()
             cv2.destroyAllWindows()
             print("Webcam released and OpenCV windows destroyed cleanly.")
