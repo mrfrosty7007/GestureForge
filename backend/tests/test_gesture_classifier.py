@@ -167,6 +167,144 @@ def build_one_finger_hand() -> list[MockLandmark]:
     return lm
 
 
+def build_ok_hand() -> list[MockLandmark]:
+    """Builds landmarks for an OK hand pose:
+
+    Thumb tip touches index tip; middle, ring, pinky fingers are extended.
+    """
+    lm = create_base_landmarks()
+
+    # Middle extended
+    lm[9] = MockLandmark(0.50, 0.46)
+    lm[10] = MockLandmark(0.50, 0.35)
+    lm[11] = MockLandmark(0.50, 0.26)
+    lm[12] = MockLandmark(0.50, 0.18)
+
+    # Ring extended
+    lm[13] = MockLandmark(0.54, 0.48)
+    lm[14] = MockLandmark(0.54, 0.38)
+    lm[15] = MockLandmark(0.54, 0.30)
+    lm[16] = MockLandmark(0.54, 0.24)
+
+    # Pinky extended
+    lm[17] = MockLandmark(0.58, 0.52)
+    lm[18] = MockLandmark(0.58, 0.44)
+    lm[19] = MockLandmark(0.58, 0.38)
+    lm[20] = MockLandmark(0.58, 0.32)
+
+    # Index finger arched down to meet thumb tip
+    lm[5] = MockLandmark(0.46, 0.48)
+    lm[6] = MockLandmark(0.44, 0.42)
+    lm[7] = MockLandmark(0.42, 0.46)
+    lm[8] = MockLandmark(0.40, 0.50)
+
+    # Thumb arched up to meet index tip
+    lm[1] = MockLandmark(0.46, 0.72)
+    lm[2] = MockLandmark(0.42, 0.64)
+    lm[3] = MockLandmark(0.40, 0.56)
+    lm[4] = MockLandmark(0.40, 0.50)
+    return lm
+
+
+def build_pinch_hand() -> list[MockLandmark]:
+    """Builds landmarks for a Pinch hand pose:
+
+    Thumb tip and index tip touch, but middle, ring, pinky are folded.
+    Must NOT be classified as OK.
+    """
+    lm = create_base_landmarks()
+    create_folded_fingers(lm)
+
+    # Index tip touches thumb tip
+    lm[5] = MockLandmark(0.46, 0.48)
+    lm[6] = MockLandmark(0.44, 0.42)
+    lm[7] = MockLandmark(0.42, 0.46)
+    lm[8] = MockLandmark(0.40, 0.50)
+
+    # Thumb tip touches index tip
+    lm[1] = MockLandmark(0.46, 0.72)
+    lm[2] = MockLandmark(0.42, 0.64)
+    lm[3] = MockLandmark(0.40, 0.56)
+    lm[4] = MockLandmark(0.40, 0.50)
+    return lm
+
+
+def build_rock_hand() -> list[MockLandmark]:
+    """Builds landmarks for a Rock hand pose:
+
+    Index and pinky extended; middle and ring folded; thumb folded across knuckles.
+    """
+    lm = create_base_landmarks()
+
+    # Index extended
+    lm[5] = MockLandmark(0.46, 0.48)
+    lm[6] = MockLandmark(0.46, 0.38)
+    lm[7] = MockLandmark(0.46, 0.30)
+    lm[8] = MockLandmark(0.46, 0.22)
+
+    # Pinky extended
+    lm[17] = MockLandmark(0.58, 0.52)
+    lm[18] = MockLandmark(0.58, 0.44)
+    lm[19] = MockLandmark(0.58, 0.38)
+    lm[20] = MockLandmark(0.58, 0.32)
+
+    # Middle folded
+    lm[9] = MockLandmark(0.50, 0.46)
+    lm[10] = MockLandmark(0.50, 0.54)
+    lm[11] = MockLandmark(0.50, 0.60)
+    lm[12] = MockLandmark(0.50, 0.64)
+
+    # Ring folded
+    lm[13] = MockLandmark(0.54, 0.48)
+    lm[14] = MockLandmark(0.54, 0.54)
+    lm[15] = MockLandmark(0.54, 0.60)
+    lm[16] = MockLandmark(0.54, 0.64)
+
+    # Thumb folded across knuckles
+    lm[1] = MockLandmark(0.44, 0.72)
+    lm[2] = MockLandmark(0.42, 0.62)
+    lm[3] = MockLandmark(0.46, 0.58)
+    lm[4] = MockLandmark(0.50, 0.56)
+    return lm
+
+
+def build_call_me_hand() -> list[MockLandmark]:
+    """Builds landmarks for a Call Me hand pose:
+
+    Thumb extended wide, pinky extended; index, middle, ring folded.
+    """
+    lm = create_base_landmarks()
+
+    # Thumb extended wide
+    lm[1] = MockLandmark(0.44, 0.72)
+    lm[2] = MockLandmark(0.38, 0.64)
+    lm[3] = MockLandmark(0.30, 0.56)
+    lm[4] = MockLandmark(0.22, 0.48)
+
+    # Pinky extended
+    lm[17] = MockLandmark(0.58, 0.52)
+    lm[18] = MockLandmark(0.60, 0.44)
+    lm[19] = MockLandmark(0.62, 0.38)
+    lm[20] = MockLandmark(0.64, 0.32)
+
+    # Index, middle, ring folded
+    lm[5] = MockLandmark(0.46, 0.48)
+    lm[6] = MockLandmark(0.46, 0.54)
+    lm[7] = MockLandmark(0.46, 0.60)
+    lm[8] = MockLandmark(0.46, 0.64)
+
+    lm[9] = MockLandmark(0.50, 0.46)
+    lm[10] = MockLandmark(0.50, 0.54)
+    lm[11] = MockLandmark(0.50, 0.60)
+    lm[12] = MockLandmark(0.50, 0.64)
+
+    lm[13] = MockLandmark(0.54, 0.48)
+    lm[14] = MockLandmark(0.54, 0.54)
+    lm[15] = MockLandmark(0.54, 0.60)
+    lm[16] = MockLandmark(0.54, 0.64)
+    return lm
+
+
 def test_thumbs_up_raw_classification() -> None:
     """Tests that orientation-aware classification correctly identifies Thumbs Up."""
     classifier = GestureClassifier()
@@ -319,3 +457,94 @@ def test_multi_hand_independent_hysteresis() -> None:
 
     assert g0 == "Fist"
     assert g1 == "Palm"
+
+
+def test_ok_gesture() -> None:
+    """Tests detection of OK gesture and ensures Pinch does not trigger OK."""
+    classifier = GestureClassifier()
+    ok_lm = build_ok_hand()
+    gesture, confidence = classifier.classify_raw(ok_lm)
+    assert gesture == "OK"
+    assert confidence in ("High", "Medium")
+
+    # Verify Pinch (middle/ring/pinky folded) does NOT trigger OK
+    pinch_lm = build_pinch_hand()
+    pinch_gesture, _ = classifier.classify_raw(pinch_lm)
+    assert pinch_gesture != "OK"
+
+
+def test_rock_gesture() -> None:
+    """Tests detection of Rock gesture and ensures Peace does not trigger Rock."""
+    classifier = GestureClassifier()
+    rock_lm = build_rock_hand()
+    gesture, confidence = classifier.classify_raw(rock_lm)
+    assert gesture == "Rock"
+    assert confidence == "High"
+
+    # Verify Peace (middle extended, pinky folded) does NOT trigger Rock
+    peace_lm = build_peace_hand()
+    peace_gesture, _ = classifier.classify_raw(peace_lm)
+    assert peace_gesture == "Peace"
+    assert peace_gesture != "Rock"
+
+
+def test_call_me_gesture() -> None:
+    """Tests detection of Call Me gesture and ensures Thumbs Up does not trigger Call Me."""
+    classifier = GestureClassifier()
+    call_me_lm = build_call_me_hand()
+    gesture, confidence = classifier.classify_raw(call_me_lm)
+    assert gesture == "Call Me"
+    assert confidence == "High"
+
+    # Verify Thumbs Up (pinky folded) does NOT trigger Call Me
+    thumbs_up_lm = build_thumbs_up_hand()
+    thumbs_up_gesture, _ = classifier.classify_raw(thumbs_up_lm)
+    assert thumbs_up_gesture == "Thumbs Up"
+    assert thumbs_up_gesture != "Call Me"
+
+
+def test_new_gestures_geometric_fallback() -> None:
+    """Tests that OK, Rock, and Call Me are recognized by pure geometric fallback."""
+    classifier = GestureClassifier(model_path="nonexistent")
+
+    ok_lm = build_ok_hand()
+    rock_lm = build_rock_hand()
+    call_me_lm = build_call_me_hand()
+
+    assert classifier.classify_raw(ok_lm) == ("OK", "High")
+    assert classifier.classify_raw(rock_lm) == ("Rock", "High")
+    assert classifier.classify_raw(call_me_lm) == ("Call Me", "High")
+
+
+def test_new_gestures_hysteresis_validation() -> None:
+    """Tests temporal hysteresis smoothing for newly added gestures (OK -> Rock transition)."""
+    classifier = GestureClassifier(hysteresis_frames=2)
+    ok_lm = build_ok_hand()
+    rock_lm = build_rock_hand()
+
+    # Frame 1: OK arrives
+    g1, _ = classifier.classify(ok_lm)
+    assert g1 == "None"
+
+    # Frame 2: OK arrives again -> confirmed
+    g2, c2 = classifier.classify(ok_lm)
+    assert g2 == "OK"
+    assert c2 in ("High", "Medium")
+
+    # Frame 3: Single-frame glitch to Rock occurs
+    g3, _ = classifier.classify(rock_lm)
+    # Hysteresis must maintain confirmed "OK"
+    assert g3 == "OK"
+
+    # Frame 4: Returns to OK
+    g4, _ = classifier.classify(ok_lm)
+    assert g4 == "OK"
+
+    # Frame 5: Intentional transition to Rock (Frame 1 candidate)
+    g5, _ = classifier.classify(rock_lm)
+    assert g5 == "OK"
+
+    # Frame 6: Intentional transition to Rock (Frame 2 candidate -> confirmed!)
+    g6, c6 = classifier.classify(rock_lm)
+    assert g6 == "Rock"
+    assert c6 == "High"

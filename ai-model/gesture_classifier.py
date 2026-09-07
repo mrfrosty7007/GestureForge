@@ -19,6 +19,9 @@ Supported Fallback Geometric Gestures:
 - Thumbs Up
 - One Finger
 - Peace
+- OK
+- Rock
+- Call Me
 
 Includes orientation-aware vector angle calculation for robust thumb detection,
 wrist-relative translation and scale normalization for invariant ML inference,
@@ -297,7 +300,7 @@ class GestureClassifier:
 
         Recognized gestures:
         - ML: Palm, Fist, Peace, One Finger, Thumbs Up, OK, Rock, Call Me.
-        - Geometric Fallback: Palm, Fist, Thumbs Up, One Finger, Peace.
+        - Geometric Fallback: Palm, Fist, Thumbs Up, One Finger, Peace, OK, Rock, Call Me.
 
         Args:
             landmarks: MediaPipe NormalizedLandmarkList or list of 21 landmark objects.
@@ -362,6 +365,12 @@ class GestureClassifier:
         thumb_close_to_index = dist_thumb_index_mcp <= max(0.12, 0.38 * palm_size)
         thumb_separated_from_index = dist_thumb_index_mcp > max(0.12, 0.38 * palm_size)
 
+        # Distance from thumb tip (4) to index tip (8)
+        dist_thumb_index_tip = self._distance(
+            lm_list[self.THUMB_TIP], lm_list[self.INDEX_TIP]
+        )
+        touching_thumb_index = dist_thumb_index_tip <= max(0.08, 0.25 * palm_size)
+
         all_four_folded = (
             not is_index_ext
             and not is_middle_ext
@@ -370,7 +379,17 @@ class GestureClassifier:
         )
 
         # -----------------------------------------------------------------
-        # Rule 1: Palm (all 4 main fingers extended)
+        # Rule 1: OK (thumb tip touching index tip, middle/ring/pinky extended)
+        # Evaluated before Palm to prevent touching tip pose matching Palm.
+        # Avoids false positives with Pinch (which has remaining fingers folded).
+        # -----------------------------------------------------------------
+        if touching_thumb_index and is_middle_ext and is_ring_ext and is_pinky_ext:
+            if dist_thumb_index_tip <= max(0.06, 0.20 * palm_size):
+                return "OK", "High"
+            return "OK", "Medium"
+
+        # -----------------------------------------------------------------
+        # Rule 2: Palm (all 4 main fingers extended, thumb not touching index)
         # -----------------------------------------------------------------
         if is_index_ext and is_middle_ext and is_ring_ext and is_pinky_ext:
             if is_thumb_ext:
@@ -378,7 +397,7 @@ class GestureClassifier:
             return "Palm", "Medium"
 
         # -----------------------------------------------------------------
-        # Rule 2: Peace (index and middle extended; ring and pinky folded)
+        # Rule 3: Peace (index and middle extended; ring and pinky folded)
         # -----------------------------------------------------------------
         if is_index_ext and is_middle_ext and not is_ring_ext and not is_pinky_ext:
             if not is_thumb_up:
@@ -386,7 +405,27 @@ class GestureClassifier:
             return "Peace", "Medium"
 
         # -----------------------------------------------------------------
-        # Rule 3: One Finger (only index extended; middle, ring, pinky folded)
+        # Rule 4: Rock (index and pinky extended; middle and ring folded)
+        # Avoids confusion with Peace (which requires middle extended & pinky folded).
+        # -----------------------------------------------------------------
+        if is_index_ext and is_pinky_ext and not is_middle_ext and not is_ring_ext:
+            return "Rock", "High"
+
+        # -----------------------------------------------------------------
+        # Rule 5: Call Me (thumb and pinky extended; index, middle, ring folded)
+        # Avoids confusion with Thumbs Up (which requires pinky folded).
+        # -----------------------------------------------------------------
+        if (
+            is_thumb_ext
+            and is_pinky_ext
+            and not is_index_ext
+            and not is_middle_ext
+            and not is_ring_ext
+        ):
+            return "Call Me", "High"
+
+        # -----------------------------------------------------------------
+        # Rule 6: One Finger (only index extended; middle, ring, pinky folded)
         # -----------------------------------------------------------------
         if is_index_ext and not is_middle_ext and not is_ring_ext and not is_pinky_ext:
             if not is_thumb_up:
@@ -398,12 +437,12 @@ class GestureClassifier:
         # Evaluate Fist rule BEFORE Thumbs Up rule
         # -----------------------------------------------------------------
         if all_four_folded:
-            # Rule 4: Fist
+            # Rule 7: Fist
             # Require compact fingertip cluster AND thumb tip close to index MCP (or thumb down)
             if is_compact_cluster and (thumb_close_to_index or not is_thumb_up):
                 return "Fist", "High"
 
-            # Rule 5: Thumbs Up
+            # Rule 8: Thumbs Up
             # Only allow Thumbs Up if the thumb clearly points upward
             # and is sufficiently separated from index MCP
             if is_thumb_up and thumb_separated_from_index:
