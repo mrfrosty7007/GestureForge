@@ -10,6 +10,10 @@ class HealthResponse(BaseModel):
 
     status: str = "ok"
     service: str = "GestureForge Backend"
+    camera: str = "active"
+    ai_worker: str = "running"
+    video_stream: str = "active"
+    telemetry: str = "active"
 
 
 class HandGesture(BaseModel):

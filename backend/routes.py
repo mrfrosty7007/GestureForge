@@ -17,6 +17,7 @@ from .models import (
     LatestGestureResponse,
 )
 from .storage import storage
+from .worker import ai_worker
 
 logger = logging.getLogger(__name__)
 
@@ -130,10 +131,18 @@ def root_status() -> dict:
 
 @router.get("/health", response_model=HealthResponse, tags=["Health"])
 def health_check() -> dict:
-    """Health check endpoint confirming backend service readiness."""
+    """Health check endpoint confirming backend service readiness and AI worker state."""
+    worker_status = ai_worker.worker_status
+    camera_status = ai_worker.camera_status
+    is_healthy = worker_status == "running" and camera_status == "active"
+
     return {
-        "status": "ok",
+        "status": "ok" if is_healthy else "degraded",
         "service": "GestureForge Backend",
+        "camera": camera_status,
+        "ai_worker": worker_status,
+        "video_stream": "active",
+        "telemetry": "active",
     }
 
 

@@ -48,12 +48,18 @@ test.describe('Part 5 — Performance, Connection Stability & Responsiveness', (
 
     const initialCount = wsEvents.length;
 
+    const reconnectPromise = page.waitForEvent('websocket', (ws) =>
+      ws.url().includes('/ws/telemetry')
+    );
+
     // Trigger close on the active socket
     await page.evaluate(() => {
       if (window._telemetryWebSocket) {
         window._telemetryWebSocket.close();
       }
     });
+
+    await reconnectPromise;
 
     // Wait for auto-reconnect
     await expect(page.getByText('WS TELEMETRY LIVE')).toBeVisible({

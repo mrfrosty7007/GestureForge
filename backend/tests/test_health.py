@@ -29,8 +29,12 @@ def test_health_check_function_direct() -> None:
     """Unit test for the health_check route function directly."""
     response = health_check()
     assert isinstance(response, dict)
-    assert response["status"] == "ok"
     assert response["service"] == "GestureForge Backend"
+    assert response["status"] in ("ok", "degraded")
+    assert "camera" in response
+    assert "ai_worker" in response
+    assert "video_stream" in response
+    assert "telemetry" in response
 
 
 def test_health_check_via_testclient() -> None:
@@ -39,10 +43,12 @@ def test_health_check_via_testclient() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data == {
-        "status": "ok",
-        "service": "GestureForge Backend",
-    }
+    assert data["service"] == "GestureForge Backend"
+    assert data["status"] in ("ok", "degraded")
+    assert "camera" in data
+    assert "ai_worker" in data
+    assert "video_stream" in data
+    assert "telemetry" in data
 
 
 def test_root_endpoint_via_testclient() -> None:

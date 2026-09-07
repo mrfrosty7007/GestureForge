@@ -281,8 +281,8 @@ export default function CameraPanel({
               STREAM RECONNECTING
             </h4>
             <p className="font-mono text-xs text-cyber-muted leading-relaxed mb-4">
-              Awaiting video frames from backend via <code className="text-cyber-teal">/ws/video</code>.
-              Run <code className="text-cyber-teal">python ai-model/hand_detection.py</code> to start stream.
+              Awaiting video frames from backend AI worker via{' '}
+              <code className="text-cyber-teal">/ws/video</code>.
             </p>
             <button
               onClick={handleRetry}
