@@ -42,6 +42,7 @@ def ingest_gesture(prediction: GesturePrediction) -> dict:
     return {
         "status": "received",
         "gesture": prediction.gesture,
+        "hands": prediction.hands,
     }
 
 
@@ -56,12 +57,17 @@ def get_latest_gesture() -> dict:
         return {
             "status": "empty",
             "message": "No gestures recorded yet",
+            "hands": [],
             "gesture": None,
+            "confidence": None,
+            "timestamp": None,
         }
 
     return {
         "status": "success",
+        "hands": latest.hands,
         "gesture": latest.gesture,
         "confidence": latest.confidence,
         "timestamp": latest.timestamp,
+        "message": None,
     }

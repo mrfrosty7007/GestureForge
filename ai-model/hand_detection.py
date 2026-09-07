@@ -3,7 +3,7 @@
 Tracks up to 2 hands in real-time, extracts 21 3D landmarks with skeletal
 connection lines, classifies hand poses into discrete gestures (Palm, Fist,
 Thumbs Up, One Finger, Peace) using geometric rules, and dispatches detected
-gestures to the GestureForge FastAPI backend with smart debouncing.
+multi-hand gestures to the GestureForge FastAPI backend with smart debouncing.
 
 Press 'Q' to quit cleanly.
 """
@@ -11,7 +11,7 @@ Press 'Q' to quit cleanly.
 import sys
 import threading
 import time
-from datetime import UTC, datetime
+from typing import Any
 
 import cv2
 import mediapipe as mp
@@ -25,15 +25,30 @@ DEBOUNCE_COOLDOWN_SEC = 1.0
 VALID_GESTURES = {"Palm", "Fist", "Thumbs Up", "One Finger", "Peace"}
 
 
-def send_gesture_async(gesture: str, confidence: str) -> None:
+def send_gesture_async(
+    hands_or_gesture: list[dict[str, Any]] | str,
+    confidence: str | None = None,
+) -> None:
     """Dispatches a gesture prediction payload to the FastAPI backend
 
-    in a non-blocking background thread.
+    in a non-blocking background thread. Supports multi-hand lists and
+    legacy single-gesture calls.
     """
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    if isinstance(hands_or_gesture, str):
+        hands = [
+            {
+                "id": 0,
+                "label": "Unknown",
+                "gesture": hands_or_gesture,
+                "confidence": confidence or "High",
+            }
+        ]
+    else:
+        hands = hands_or_gesture
+
+    timestamp = int(time.time())
     payload = {
-        "gesture": gesture,
-        "confidence": confidence,
+        "hands": hands,
         "timestamp": timestamp,
     }
 
@@ -45,11 +60,13 @@ def send_gesture_async(gesture: str, confidence: str) -> None:
                 timeout=REQUEST_TIMEOUT_SEC,
             )
             if resp.status_code == 200:
-                print(f"Sent: {gesture} ({confidence})")
-            else:
-                print(
-                    f"[API Warning] Backend returned status {resp.status_code} for {gesture}"
+                summary = ", ".join(
+                    f"[{h.get('label', 'Hand')} #{h.get('id', 0)}] {h.get('gesture')} ({h.get('confidence')})"
+                    for h in hands
                 )
+                print(f"Sent ({len(hands)} hands): {summary}")
+            else:
+                print(f"[API Warning] Backend returned status {resp.status_code}")
         except requests.exceptions.RequestException as exc:
             # Print non-fatal error message without interrupting webcam feed
             print(
@@ -87,7 +104,7 @@ def run_hand_detection():
     print("=" * 65)
 
     prev_time = time.time()
-    last_sent_gesture = None
+    last_sent_hands_state = None
     last_sent_time = 0.0
 
     # Configure MediaPipe Hands
@@ -118,6 +135,7 @@ def run_hand_detection():
                 results = hands.process(rgb_frame)
                 rgb_frame.flags.writeable = True
 
+                detected_hands: list[dict[str, Any]] = []
                 hand_count = 0
                 active_gesture = "None"
                 active_confidence = "N/A"
@@ -143,7 +161,29 @@ def run_hand_detection():
                             hand_landmarks, hand_id=hand_idx
                         )
 
-                        # Track primary hand gesture for main HUD overlay and backend streaming
+                        # Determine handedness label if available from MediaPipe
+                        label = "Unknown"
+                        if results.multi_handedness and hand_idx < len(
+                            results.multi_handedness
+                        ):
+                            classification = results.multi_handedness[
+                                hand_idx
+                            ].classification
+                            if classification:
+                                label = classification[0].label
+
+                        # Collect valid gestures for multi-hand payload
+                        if gesture in VALID_GESTURES:
+                            detected_hands.append(
+                                {
+                                    "id": hand_idx,
+                                    "label": label,
+                                    "gesture": gesture,
+                                    "confidence": confidence,
+                                }
+                            )
+
+                        # Track primary hand gesture for main HUD overlay text
                         if hand_idx == 0:
                             active_gesture = gesture
                             active_confidence = confidence
@@ -151,7 +191,7 @@ def run_hand_detection():
                         # 3. Render per-hand floating tag near the wrist
                         wrist = hand_landmarks.landmark[GestureClassifier.WRIST]
                         wrist_px = (int(wrist.x * w), int(wrist.y * h) + 25)
-                        tag_text = f"{gesture} ({confidence})"
+                        tag_text = f"[{label}] {gesture} ({confidence})"
                         cv2.putText(
                             frame,
                             tag_text,
@@ -164,22 +204,24 @@ def run_hand_detection():
                         )
 
                 # -------------------------------------------------------------
-                # Smart Debounced API Streaming to Backend
+                # Smart Debounced API Streaming to Backend (Multi-Hand)
                 # -------------------------------------------------------------
-                if active_gesture in VALID_GESTURES:
-                    # Send only if gesture changed OR cooldown expired
-                    gesture_changed = active_gesture != last_sent_gesture
+                if detected_hands:
+                    current_hands_state = tuple(
+                        (h["id"], h["label"], h["gesture"]) for h in detected_hands
+                    )
+                    hands_changed = current_hands_state != last_sent_hands_state
                     cooldown_expired = (
                         current_time - last_sent_time
                     ) >= DEBOUNCE_COOLDOWN_SEC
 
-                    if gesture_changed or cooldown_expired:
-                        send_gesture_async(active_gesture, active_confidence)
-                        last_sent_gesture = active_gesture
+                    if hands_changed or cooldown_expired:
+                        send_gesture_async(detected_hands)
+                        last_sent_hands_state = current_hands_state
                         last_sent_time = current_time
                 else:
                     # Reset tracker when no valid gesture is detected so next gesture sends immediately
-                    last_sent_gesture = None
+                    last_sent_hands_state = None
 
                 # Calculate live FPS
                 fps = (

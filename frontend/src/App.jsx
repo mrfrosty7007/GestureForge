@@ -55,7 +55,11 @@ export default function App() {
 
           if (data.status === 'success' && data.gesture) {
             setGestureData(data);
-            setHandsDetected(1);
+            const count =
+              data.hands && Array.isArray(data.hands) && data.hands.length > 0
+                ? data.hands.length
+                : 1;
+            setHandsDetected(count);
             // Slight jitter for realistic FPS telemetry
             setFps(29.5 + Math.random() * 1.5);
 
