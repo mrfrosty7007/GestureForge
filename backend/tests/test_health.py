@@ -21,8 +21,10 @@ from backend.storage import storage
 def reset_storage():
     """Ensure in-memory storage is cleared before each test."""
     storage.clear()
+    video_manager._latest_frame = None
     yield
     storage.clear()
+    video_manager._latest_frame = None
 
 
 def test_health_check_function_direct() -> None:
@@ -468,3 +470,29 @@ def test_websocket_video_cached_frame_on_connect() -> None:
     with client.websocket_connect("/ws/video") as ws:
         received = ws.receive_bytes()
         assert received == cached_frame
+
+
+def test_video_manager_replaces_cached_frame() -> None:
+    """Test that publishing a new frame replaces the cached frame immediately."""
+    first_frame = b"first-jpeg"
+    latest_frame = b"latest-jpeg"
+
+    async def publish_frames() -> None:
+        await video_manager.broadcast_frame(first_frame)
+        await video_manager.broadcast_frame(latest_frame)
+
+    import asyncio
+
+    asyncio.run(publish_frames())
+    assert video_manager._latest_frame == latest_frame
+
+
+def test_websocket_video_refresh_returns_latest_frame() -> None:
+    """Test that a viewer can request a fresh frame after visibility restoration."""
+    latest_frame = b"latest-after-refresh"
+    video_manager._latest_frame = latest_frame
+    client = TestClient(app)
+
+    with client.websocket_connect("/ws/video") as ws:
+        ws.send_text("refresh")
+        assert ws.receive_bytes() == latest_frame

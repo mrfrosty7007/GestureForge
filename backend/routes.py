@@ -6,6 +6,7 @@ polling the latest detected gesture, and real-time WebSocket telemetry streaming
 
 import contextlib
 import logging
+import threading
 from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -74,7 +75,9 @@ class VideoStreamManager:
 
     def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
+        self._frame_lock = threading.Lock()
         self._latest_frame: bytes | None = None
+        self._broadcasting = False
 
     async def connect(self, websocket: WebSocket) -> None:
         """Accepts a new WebSocket connection and registers it."""
@@ -84,9 +87,11 @@ class VideoStreamManager:
             "Video WebSocket client connected. Active connections: %d",
             len(self.active_connections),
         )
-        if self._latest_frame is not None:
+        with self._frame_lock:
+            latest_frame = self._latest_frame
+        if latest_frame is not None:
             with contextlib.suppress(Exception):
-                await websocket.send_bytes(self._latest_frame)
+                await websocket.send_bytes(latest_frame)
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Safely removes a disconnected WebSocket client."""
@@ -100,20 +105,38 @@ class VideoStreamManager:
     async def broadcast_frame(
         self, frame_bytes: bytes, sender: WebSocket | None = None
     ) -> None:
-        """Broadcasts binary JPEG frame bytes to all subscribed clients."""
-        self._latest_frame = frame_bytes
-        dead_connections: list[WebSocket] = []
-        for connection in list(self.active_connections):
-            if connection is sender:
-                continue
-            try:
-                await connection.send_bytes(frame_bytes)
-            except Exception as exc:
-                logger.warning("Failed to send frame to WebSocket client: %s", exc)
-                dead_connections.append(connection)
+        """Broadcasts only the newest JPEG, coalescing concurrent frame updates."""
+        with self._frame_lock:
+            self._latest_frame = frame_bytes
 
-        for dead in dead_connections:
-            self.disconnect(dead)
+        if self._broadcasting:
+            return
+
+        self._broadcasting = True
+        try:
+            while True:
+                with self._frame_lock:
+                    frame_to_send = self._latest_frame
+                dead_connections: list[WebSocket] = []
+                for connection in list(self.active_connections):
+                    if connection is sender:
+                        continue
+                    try:
+                        await connection.send_bytes(frame_to_send)
+                    except Exception as exc:
+                        logger.warning(
+                            "Failed to send frame to WebSocket client: %s", exc
+                        )
+                        dead_connections.append(connection)
+
+                for dead in dead_connections:
+                    self.disconnect(dead)
+
+                with self._frame_lock:
+                    if self._latest_frame is frame_to_send:
+                        break
+        finally:
+            self._broadcasting = False
 
 
 # Global singleton video stream manager
@@ -259,8 +282,14 @@ async def websocket_video(websocket: WebSocket) -> None:
             message = await websocket.receive()
             if "bytes" in message and message["bytes"]:
                 await video_manager.broadcast_frame(message["bytes"], sender=websocket)
-            elif "text" in message and message["text"] == "ping":
-                await websocket.send_text("pong")
+            elif "text" in message:
+                if message["text"] == "ping":
+                    await websocket.send_text("pong")
+                elif message["text"] in ("frame", "refresh"):
+                    with video_manager._frame_lock:
+                        latest_frame = video_manager._latest_frame
+                    if latest_frame is not None:
+                        await websocket.send_bytes(latest_frame)
     except WebSocketDisconnect:
         video_manager.disconnect(websocket)
     except Exception as exc:

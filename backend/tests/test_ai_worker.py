@@ -10,6 +10,7 @@ Validates:
 
 from unittest.mock import MagicMock, patch
 
+import cv2
 import numpy as np
 from fastapi.testclient import TestClient
 
@@ -68,6 +69,7 @@ def test_ai_worker_headless_mode_never_calls_gui() -> None:
         worker._stop_event.wait(0.3)
         worker.stop(timeout=1.0)
 
+        mock_cap.set.assert_any_call(cv2.CAP_PROP_BUFFERSIZE, 1)
         # In headless mode, imshow and waitKey MUST NOT be called
         mock_imshow.assert_not_called()
         mock_waitkey.assert_not_called()

@@ -25,6 +25,8 @@ export default function CameraPanel({
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const manualDisconnectRef = useRef(false);
+  const pendingFrameRef = useRef(null);
+  const renderingFrameRef = useRef(false);
 
   const hasGesture = gestureData && gestureData.gesture && gestureData.gesture !== 'None';
   const primaryGesture = hasGesture ? gestureData.gesture : null;
@@ -50,6 +52,38 @@ export default function CameraPanel({
         window._videoWebSocket = null;
       }
     }
+    pendingFrameRef.current = null;
+  }, []);
+
+  const renderLatestFrame = useCallback(() => {
+    if (renderingFrameRef.current || !pendingFrameRef.current) return;
+
+    renderingFrameRef.current = true;
+    const frame = pendingFrameRef.current;
+    pendingFrameRef.current = null;
+    createImageBitmap(frame)
+      .then((bitmap) => {
+        if (!canvasRef.current) {
+          bitmap.close();
+          return;
+        }
+        const canvas = canvasRef.current;
+        if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+        }
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        setStreamState('active');
+      })
+      .catch((err) => {
+        console.warn('Frame render error:', err);
+      })
+      .finally(() => {
+        renderingFrameRef.current = false;
+        renderLatestFrame();
+      });
   }, []);
 
   // Connect to backend WebSocket /ws/video
@@ -77,28 +111,8 @@ export default function CameraPanel({
 
       ws.onmessage = (event) => {
         if (event.data instanceof Blob) {
-          createImageBitmap(event.data)
-            .then((bitmap) => {
-              if (!canvasRef.current) {
-                bitmap.close();
-                return;
-              }
-              const canvas = canvasRef.current;
-              if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
-                canvas.width = bitmap.width;
-                canvas.height = bitmap.height;
-              }
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(bitmap, 0, 0);
-              }
-              // Immediately close the ImageBitmap to prevent GPU/DOM memory leaks
-              bitmap.close();
-              setStreamState('active');
-            })
-            .catch((err) => {
-              console.warn('Frame render error:', err);
-            });
+          pendingFrameRef.current = event.data;
+          renderLatestFrame();
         }
       };
 
@@ -123,7 +137,7 @@ export default function CameraPanel({
       setStreamState('offline');
       setErrorMessage(err.message || 'Failed to connect to video stream');
     }
-  }, [closeWebSocket]);
+  }, [closeWebSocket, renderLatestFrame]);
 
   // User manual control actions
   const handleDisconnect = useCallback(() => {
@@ -143,10 +157,17 @@ export default function CameraPanel({
   // Mount / Unmount lifecycle
   useEffect(() => {
     connectStream();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send('frame');
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       manualDisconnectRef.current = true;
       closeWebSocket();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [connectStream, closeWebSocket]);
 

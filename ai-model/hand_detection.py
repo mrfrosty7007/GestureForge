@@ -11,7 +11,6 @@ Operates in headless mode by default (no GUI windows), with an optional
 
 import collections
 import contextlib
-import queue
 import threading
 import time
 from collections.abc import Callable
@@ -50,21 +49,21 @@ class VideoFramePublisher:
 
     def __init__(self, ws_url: str = VIDEO_WS_URL) -> None:
         self.ws_url = ws_url
-        self._queue: queue.Queue[bytes] = queue.Queue(maxsize=1)
+        self._frame_lock = threading.Lock()
+        self._latest_frame: bytes | None = None
+        self._frame_available = threading.Event()
         self._running = True
         self._connected = False
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
 
     def send_frame(self, frame_bytes: bytes) -> None:
-        """Enqueues the latest frame for transmission, dropping any stale unsent frame."""
+        """Replaces the pending frame so an unsent frame can never become stale."""
         if not self._running:
             return
-        if self._queue.full():
-            with contextlib.suppress(queue.Empty):
-                self._queue.get_nowait()
-        with contextlib.suppress(queue.Full):
-            self._queue.put_nowait(frame_bytes)
+        with self._frame_lock:
+            self._latest_frame = frame_bytes
+            self._frame_available.set()
 
     def _worker(self) -> None:
         """Background daemon thread maintaining the WebSocket connection and sending frames."""
@@ -77,11 +76,14 @@ class VideoFramePublisher:
                 ) as ws:
                     self._connected = True
                     while self._running:
-                        try:
-                            frame_data = self._queue.get(timeout=0.5)
-                            ws.send(frame_data)
-                        except queue.Empty:
+                        if not self._frame_available.wait(0.5):
                             continue
+                        with self._frame_lock:
+                            frame_data = self._latest_frame
+                            self._latest_frame = None
+                            self._frame_available.clear()
+                        if frame_data is not None:
+                            ws.send(frame_data)
             except Exception:
                 self._connected = False
                 time.sleep(1.0)
@@ -263,6 +265,7 @@ class AIWorker:
                         continue
 
                     self._camera_status = "active"
+                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
                     try:
                         while not self._stop_event.is_set() and cap.isOpened():
@@ -511,7 +514,7 @@ class AIWorker:
                                 current_time - self._last_stream_time
                             ) >= stream_interval:
                                 _, buffer = cv2.imencode(
-                                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80]
+                                    ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75]
                                 )
                                 frame_bytes = buffer.tobytes()
                                 if self.on_frame:
