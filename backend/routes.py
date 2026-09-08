@@ -25,6 +25,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def get_active_client_count() -> int:
+    """Returns the total number of active streaming and telemetry WebSocket connections."""
+    return len(manager.active_connections) + len(video_manager.active_connections)
+
+
 class ConnectionManager:
     """Manages active WebSocket connections and broadcasts telemetry updates."""
 
@@ -35,19 +40,16 @@ class ConnectionManager:
         """Accepts a new WebSocket connection and registers it."""
         await websocket.accept()
         self.active_connections.append(websocket)
-        logger.info(
-            "WebSocket client connected. Active connections: %d",
-            len(self.active_connections),
-        )
+        logger.info("Client connected")
+        ai_worker.set_consumer_active(True)
 
     def disconnect(self, websocket: WebSocket) -> None:
         """Safely removes a disconnected WebSocket client."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            logger.info(
-                "WebSocket client disconnected. Active connections: %d",
-                len(self.active_connections),
-            )
+            logger.info("Client disconnected")
+            if get_active_client_count() == 0:
+                ai_worker.set_consumer_active(False)
 
     async def broadcast(self, message: dict[str, Any]) -> None:
         """Broadcasts a JSON message to all active WebSocket clients.
@@ -83,10 +85,8 @@ class VideoStreamManager:
         """Accepts a new WebSocket connection and registers it."""
         await websocket.accept()
         self.active_connections.append(websocket)
-        logger.info(
-            "Video WebSocket client connected. Active connections: %d",
-            len(self.active_connections),
-        )
+        logger.info("Client connected")
+        ai_worker.set_consumer_active(True)
         with self._frame_lock:
             latest_frame = self._latest_frame
         if latest_frame is not None:
@@ -97,10 +97,9 @@ class VideoStreamManager:
         """Safely removes a disconnected WebSocket client."""
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-            logger.info(
-                "Video WebSocket client disconnected. Active connections: %d",
-                len(self.active_connections),
-            )
+            logger.info("Client disconnected")
+            if get_active_client_count() == 0:
+                ai_worker.set_consumer_active(False)
 
     async def broadcast_frame(
         self, frame_bytes: bytes, sender: WebSocket | None = None
@@ -157,7 +156,7 @@ def health_check() -> dict:
     """Health check endpoint confirming backend service readiness and AI worker state."""
     worker_status = ai_worker.worker_status
     camera_status = ai_worker.camera_status
-    is_healthy = worker_status == "running" and camera_status == "active"
+    is_healthy = worker_status == "running" and camera_status in ("active", "standby")
 
     return {
         "status": "ok" if is_healthy else "degraded",
@@ -258,14 +257,22 @@ async def websocket_telemetry(websocket: WebSocket) -> None:
     try:
         await websocket.send_json(initial_payload)
         while True:
-            # Keep connection open; receive client heartbeats / ping
-            data = await websocket.receive_text()
+            try:
+                data = await websocket.receive_text()
+            except WebSocketDisconnect:
+                break
+            except RuntimeError as exc:
+                if "disconnect" in str(exc).lower():
+                    break
+                raise
+
             if data == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        pass
     except Exception as exc:
         logger.warning("WebSocket error encountered: %s", exc)
+    finally:
         manager.disconnect(websocket)
 
 
@@ -279,21 +286,35 @@ async def websocket_video(websocket: WebSocket) -> None:
     await video_manager.connect(websocket)
     try:
         while True:
-            message = await websocket.receive()
+            try:
+                message = await websocket.receive()
+            except WebSocketDisconnect:
+                break
+            except RuntimeError as exc:
+                if "disconnect" in str(exc).lower():
+                    break
+                raise
+
+            # Prevent calling receive again if a disconnect ASGI message was received
+            if message.get("type") == "websocket.disconnect":
+                break
+
             if "bytes" in message and message["bytes"]:
                 await video_manager.broadcast_frame(message["bytes"], sender=websocket)
             elif "text" in message:
-                if message["text"] == "ping":
+                text = message["text"]
+                if text == "ping":
                     await websocket.send_text("pong")
-                elif message["text"] in ("frame", "refresh"):
+                elif text in ("frame", "refresh"):
                     with video_manager._frame_lock:
                         latest_frame = video_manager._latest_frame
                     if latest_frame is not None:
                         await websocket.send_bytes(latest_frame)
     except WebSocketDisconnect:
-        video_manager.disconnect(websocket)
+        pass
     except Exception as exc:
         logger.warning("Video WebSocket error encountered: %s", exc)
+    finally:
         video_manager.disconnect(websocket)
 
 
@@ -304,18 +325,26 @@ async def video_feed():
     Returns a multipart/x-mixed-replace stream of JPEG frames that can be consumed
     directly by an <img> tag for minimal latency video display.
     """
+    ai_worker.set_consumer_active(True)
 
     def generate():
-        while True:
-            with video_manager._frame_lock:
-                frame = video_manager._latest_frame
-            if frame is not None:
-                yield (
-                    b"--frame\r\n" b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-                )
-            # Small delay to prevent overwhelming the connection
-            import time
+        try:
+            while True:
+                with video_manager._frame_lock:
+                    frame = video_manager._latest_frame
+                if frame is not None:
+                    yield (
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n"
+                        + frame
+                        + b"\r\n"
+                    )
+                # Small delay to prevent overwhelming the connection
+                import time
 
-            time.sleep(0.033)  # ~30 FPS
+                time.sleep(0.033)  # ~30 FPS
+        finally:
+            if get_active_client_count() == 0:
+                ai_worker.set_consumer_active(False)
 
     return Response(generate(), media_type="multipart/x-mixed-replace; boundary=frame")

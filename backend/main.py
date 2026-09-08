@@ -5,6 +5,7 @@ and provides Swagger documentation.
 """
 
 import asyncio
+import atexit
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -19,7 +20,20 @@ from .routes import manager, router, video_manager
 from .storage import storage
 from .worker import ai_worker
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 logger = logging.getLogger(__name__)
+
+
+def _shutdown_cleanup() -> None:
+    """Safety-net cleanup handler registered via atexit for unexpected exits."""
+    if ai_worker.is_running():
+        ai_worker.stop()
+
+
+atexit.register(_shutdown_cleanup)
 
 
 @asynccontextmanager
@@ -70,14 +84,23 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             on_gesture=on_gesture_dispatch,
             on_frame=on_frame_dispatch,
         )
+        ai_worker.set_consumer_active(False)
         ai_worker.start()
 
-    yield
-
-    # Clean shutdown on application exit
-    if ai_worker.is_running():
-        logger.info("Stopping AI perception worker cleanly...")
-        ai_worker.stop()
+    try:
+        yield
+    finally:
+        # Clean shutdown on application exit
+        try:
+            if ai_worker.is_running():
+                logger.info("Stopping AI perception worker cleanly...")
+                ai_worker.stop()
+        except Exception as exc:
+            logger.warning(
+                "Error stopping AI perception worker during shutdown: %s", exc
+            )
+        finally:
+            logger.info("Backend shutdown complete")
 
 
 app = FastAPI(
