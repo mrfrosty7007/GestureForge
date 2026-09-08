@@ -822,14 +822,15 @@ def _draw_native_hud(
     fps: float,
     latency_ms: float,
     hand_count: int,
-    gesture_name: str,
+    left_gesture: str,
+    right_gesture: str,
     emoji_patches: dict[str, np.ndarray],
 ) -> None:
     """Renders a translucent glass HUD panel in the top-left of the camera frame."""
     h_frame, w_frame = frame.shape[:2]
 
     panel_x1, panel_y1 = 12, 12
-    panel_x2, panel_y2 = 255, 156
+    panel_x2, panel_y2 = 260, 172
 
     if panel_x2 > w_frame or panel_y2 > h_frame:
         return
@@ -860,9 +861,9 @@ def _draw_native_hud(
     cv2.putText(
         frame,
         f"FPS: {fps:.1f}",
-        (panel_x1 + 12, panel_y1 + 52),
+        (panel_x1 + 12, panel_y1 + 50),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.48,
+        0.46,
         fps_color,
         1,
         cv2.LINE_AA,
@@ -872,9 +873,9 @@ def _draw_native_hud(
     cv2.putText(
         frame,
         f"Latency: {int(round(latency_ms))} ms",
-        (panel_x1 + 12, panel_y1 + 76),
+        (panel_x1 + 12, panel_y1 + 72),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.48,
+        0.46,
         (220, 220, 220),
         1,
         cv2.LINE_AA,
@@ -884,59 +885,61 @@ def _draw_native_hud(
     cv2.putText(
         frame,
         f"Hands: {hand_count}",
-        (panel_x1 + 12, panel_y1 + 100),
+        (panel_x1 + 12, panel_y1 + 94),
         cv2.FONT_HERSHEY_SIMPLEX,
-        0.48,
+        0.46,
         (220, 220, 220),
         1,
         cv2.LINE_AA,
     )
 
-    # Line 4: Gesture: [Emoji] [Name]
-    if hand_count > 0 and gesture_name in GESTURE_EMOJI_MAP:
-        emoji_sym, disp_name = GESTURE_EMOJI_MAP[gesture_name]
-    else:
-        emoji_sym, disp_name = ("\u2754", "None")
+    # Line 4: Left Hand:  [Emoji] [Name]
+    # Line 5: Right Hand: [Emoji] [Name]
+    left_sym, left_name = GESTURE_EMOJI_MAP.get(left_gesture, ("\u2754", "None"))
+    right_sym, right_name = GESTURE_EMOJI_MAP.get(right_gesture, ("\u2754", "None"))
 
-    label_prefix = "Gesture: "
-    cv2.putText(
-        frame,
-        label_prefix,
-        (panel_x1 + 12, panel_y1 + 126),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.48,
-        (220, 220, 220),
-        1,
-        cv2.LINE_AA,
-    )
+    hand_rows = [
+        ("Left Hand:  ", left_sym, left_name, panel_y1 + 120),
+        ("Right Hand: ", right_sym, right_name, panel_y1 + 146),
+    ]
 
-    (prefix_w, _), _ = cv2.getTextSize(label_prefix, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)
+    col_emoji_x = panel_x1 + 12 + 76
 
-    cur_x = panel_x1 + 12 + prefix_w + 2
-    patch = emoji_patches.get(emoji_sym)
-    if patch is not None:
-        pw, ph = patch.shape[1], patch.shape[0]
-        py = panel_y1 + 126 - 17
-        if py >= 0 and py + ph <= h_frame and cur_x + pw <= w_frame:
-            roi = frame[py : py + ph, cur_x : cur_x + pw]
-            alpha = patch[:, :, 3:4].astype(np.float32) / 255.0
-            bgr = patch[:, :, :3][:, :, ::-1]
-            frame[py : py + ph, cur_x : cur_x + pw] = (
-                bgr * alpha + roi * (1.0 - alpha)
-            ).astype(np.uint8)
-            cur_x += pw + 5
+    for prefix, sym, name, y_pos in hand_rows:
+        cv2.putText(
+            frame,
+            prefix,
+            (panel_x1 + 12, y_pos),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.46,
+            (220, 220, 220),
+            1,
+            cv2.LINE_AA,
+        )
 
-    gesture_text_color = (0, 255, 200) if disp_name != "None" else (160, 160, 160)
-    cv2.putText(
-        frame,
-        disp_name,
-        (cur_x, panel_y1 + 126),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.48,
-        gesture_text_color,
-        1,
-        cv2.LINE_AA,
-    )
+        patch = emoji_patches.get(sym)
+        if patch is not None:
+            pw, ph = patch.shape[1], patch.shape[0]
+            py = y_pos - 16
+            if py >= 0 and py + ph <= h_frame and col_emoji_x + pw <= w_frame:
+                roi = frame[py : py + ph, col_emoji_x : col_emoji_x + pw]
+                alpha = patch[:, :, 3:4].astype(np.float32) / 255.0
+                bgr = patch[:, :, :3][:, :, ::-1]
+                frame[py : py + ph, col_emoji_x : col_emoji_x + pw] = (
+                    bgr * alpha + roi * (1.0 - alpha)
+                ).astype(np.uint8)
+
+        gesture_text_color = (0, 255, 200) if name != "None" else (160, 160, 160)
+        cv2.putText(
+            frame,
+            name,
+            (col_emoji_x + 28, y_pos),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.46,
+            gesture_text_color,
+            1,
+            cv2.LINE_AA,
+        )
 
 
 def _letterbox_frame(frame: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
@@ -964,6 +967,153 @@ def _letterbox_frame(frame: np.ndarray, target_w: int, target_h: int) -> np.ndar
     return canvas
 
 
+# Cached keyboard shortcut hint static assets
+_HINT_SEGMENTS: list[tuple[str, tuple[int, int, int]]] = [
+    ("[", (200, 200, 200)),
+    ("F", (0, 255, 128)),
+    ("] Fullscreen", (240, 240, 240)),
+    ("    ", (0, 0, 0)),
+    ("[", (200, 200, 200)),
+    ("Q", (0, 255, 128)),
+    ("] Quit", (240, 240, 240)),
+]
+_HINT_GAP_W = 20
+_HINT_PAD_X = 12
+_HINT_TEXT_W = sum(
+    (
+        _HINT_GAP_W
+        if txt == "    "
+        else cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)[0][0]
+    )
+    for txt, _ in _HINT_SEGMENTS
+)
+_HINT_BADGE_W = _HINT_TEXT_W + 2 * _HINT_PAD_X
+_HINT_BADGE_H = 26
+_HINT_BADGE_R = 6
+
+_HINT_MASK = np.zeros((_HINT_BADGE_H, _HINT_BADGE_W), dtype=np.uint8)
+cv2.rectangle(
+    _HINT_MASK,
+    (_HINT_BADGE_R, 0),
+    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_H),
+    255,
+    -1,
+)
+cv2.rectangle(
+    _HINT_MASK,
+    (0, _HINT_BADGE_R),
+    (_HINT_BADGE_W, _HINT_BADGE_H - _HINT_BADGE_R),
+    255,
+    -1,
+)
+cv2.circle(_HINT_MASK, (_HINT_BADGE_R, _HINT_BADGE_R), _HINT_BADGE_R, 255, -1)
+cv2.circle(
+    _HINT_MASK,
+    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_R),
+    _HINT_BADGE_R,
+    255,
+    -1,
+)
+cv2.circle(
+    _HINT_MASK,
+    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_H - _HINT_BADGE_R),
+    _HINT_BADGE_R,
+    255,
+    -1,
+)
+cv2.circle(
+    _HINT_MASK,
+    (_HINT_BADGE_R, _HINT_BADGE_H - _HINT_BADGE_R),
+    _HINT_BADGE_R,
+    255,
+    -1,
+)
+_HINT_MASK_BOOL = _HINT_MASK == 255
+
+
+def _draw_shortcut_hints(image: np.ndarray) -> None:
+    """Renders a small translucent keyboard shortcut hint at the bottom-center of the image."""
+    h_img, w_img = image.shape[:2]
+    if w_img < _HINT_BADGE_W or h_img < _HINT_BADGE_H + 10:
+        return
+
+    # Responsive centering at bottom
+    x1 = (w_img - _HINT_BADGE_W) // 2
+    y1 = h_img - _HINT_BADGE_H - 12
+    x2 = x1 + _HINT_BADGE_W
+    y2 = y1 + _HINT_BADGE_H
+
+    sub_roi = image[y1:y2, x1:x2]
+    glass_tint = np.full_like(sub_roi, (18, 18, 22), dtype=np.uint8)
+    blended = cv2.addWeighted(glass_tint, 0.70, sub_roi, 0.30, 0)
+    sub_roi[_HINT_MASK_BOOL] = blended[_HINT_MASK_BOOL]
+
+    # Rounded border matching HUD styling
+    border_color = (75, 80, 90)
+    br = _HINT_BADGE_R
+    bw = _HINT_BADGE_W
+    bh = _HINT_BADGE_H
+    cv2.line(sub_roi, (br, 0), (bw - br, 0), border_color, 1, cv2.LINE_AA)
+    cv2.line(sub_roi, (br, bh - 1), (bw - br, bh - 1), border_color, 1, cv2.LINE_AA)
+    cv2.line(sub_roi, (0, br), (0, bh - 1 - br), border_color, 1, cv2.LINE_AA)
+    cv2.line(sub_roi, (bw - 1, br), (bw - 1, bh - 1 - br), border_color, 1, cv2.LINE_AA)
+    cv2.ellipse(sub_roi, (br, br), (br, br), 0, 180, 270, border_color, 1, cv2.LINE_AA)
+    cv2.ellipse(
+        sub_roi,
+        (bw - 1 - br, br),
+        (br, br),
+        0,
+        270,
+        360,
+        border_color,
+        1,
+        cv2.LINE_AA,
+    )
+    cv2.ellipse(
+        sub_roi,
+        (bw - 1 - br, bh - 1 - br),
+        (br, br),
+        0,
+        0,
+        90,
+        border_color,
+        1,
+        cv2.LINE_AA,
+    )
+    cv2.ellipse(
+        sub_roi,
+        (br, bh - 1 - br),
+        (br, br),
+        0,
+        90,
+        180,
+        border_color,
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Key labels: white text with green accents for F and Q
+    cur_x = _HINT_PAD_X
+    text_y = 18
+    for txt, col in _HINT_SEGMENTS:
+        if txt == "    ":
+            cur_x += _HINT_GAP_W
+            continue
+        cv2.putText(
+            sub_roi,
+            txt,
+            (cur_x, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.44,
+            col,
+            1,
+            cv2.LINE_AA,
+        )
+        cur_x += cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)[0][0]
+
+    image[y1:y2, x1:x2] = sub_roi
+
+
 def run_native_camera_app(camera_index: int = 0) -> None:
     """High-performance standalone OpenCV camera application for live gesture recognition.
 
@@ -973,6 +1123,7 @@ def run_native_camera_app(camera_index: int = 0) -> None:
     - Gesture recognition via GestureClassifier.
     - Minimal translucent HUD: FPS, live latency (ms), hand count, emoji + gesture name.
     - Fullscreen toggle ('f' / 'F') preserving aspect ratio with black letterboxing.
+    - Responsive bottom-center shortcut hints: '[F] Fullscreen    [Q] Quit'.
     - Zero JPEG encoding, zero networking, zero frame copies.
     - Clean exit on 'q' or 'Q'.
     """
@@ -1045,7 +1196,8 @@ def run_native_camera_app(camera_index: int = 0) -> None:
             results = hands.process(rgb_frame)
             rgb_frame.flags.writeable = True
 
-            primary_gesture = "None"
+            left_gesture = "None"
+            right_gesture = "None"
             hand_count = (
                 len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
             )
@@ -1065,17 +1217,25 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                         hand_landmarks, hand_id=hand_idx
                     )
 
-                    if hand_idx == 0:
-                        primary_gesture = gesture
-
-                    # Handedness label if available
-                    label = ""
+                    # Handedness label directly from MediaPipe classification
+                    hand_label = "Unknown"
                     if results.multi_handedness and hand_idx < len(
                         results.multi_handedness
                     ):
                         c = results.multi_handedness[hand_idx].classification
                         if c:
-                            label = f"{c[0].label}: "
+                            hand_label = c[0].label  # "Left" or "Right"
+
+                    # Map to left/right indicators by MediaPipe handedness, NOT screen position
+                    if hand_label == "Left":
+                        left_gesture = gesture
+                    elif hand_label == "Right":
+                        right_gesture = gesture
+                    else:
+                        if left_gesture == "None":
+                            left_gesture = gesture
+                        elif right_gesture == "None":
+                            right_gesture = gesture
 
                     # Per-hand wrist tag
                     _, tag_name = GESTURE_EMOJI_MAP.get(gesture, ("\u2754", gesture))
@@ -1086,7 +1246,7 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                     )
                     cv2.putText(
                         frame,
-                        f"{label}{tag_name} ({confidence})",
+                        f"{hand_label}: {tag_name} ({confidence})",
                         wrist_px,
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.6,
@@ -1108,7 +1268,8 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                 fps=rolling_fps,
                 latency_ms=avg_latency,
                 hand_count=hand_count,
-                gesture_name=primary_gesture,
+                left_gesture=left_gesture,
+                right_gesture=right_gesture,
                 emoji_patches=emoji_patches,
             )
 
@@ -1126,6 +1287,9 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                 display_frame = _letterbox_frame(frame, win_w, win_h)
             else:
                 display_frame = frame
+
+            # Render shortcut hints at bottom-center of the active window frame
+            _draw_shortcut_hints(display_frame)
 
             cv2.imshow(window_name, display_frame)
 
