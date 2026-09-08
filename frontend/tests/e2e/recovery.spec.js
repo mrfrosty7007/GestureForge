@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
-  test('browser never requests camera permissions or calls getUserMedia', async ({
-    page,
-  }) => {
+  test('browser never requests camera permissions or calls getUserMedia', async ({ page }) => {
     // Intercept getUserMedia and fail if called
     await page.addInitScript(() => {
       window._getUserMediaCalled = false;
@@ -40,6 +38,9 @@ test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
 
     // Verify stream transitions to STREAM OFFLINE
     await expect(page.getByText('STREAM OFFLINE').first()).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window._videoWebSocket), { timeout: 1000 })
+      .toBe(null);
 
     // Verify Connect Stream button appears
     const connectBtn = page.getByRole('button', { name: /CONNECT STREAM/i }).first();
@@ -52,9 +53,7 @@ test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
     await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('gracefully handles stream interruption and shows reconnecting state', async ({
-    page,
-  }) => {
+  test('gracefully handles stream interruption and shows reconnecting state', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
 
@@ -69,6 +68,73 @@ test.describe('Part 4 — Failure Recovery & Graceful Degradation', () => {
     await expect(
       page.locator('text=STREAM RECONNECTING').or(page.locator('text=STREAM ONLINE')).first()
     ).toBeVisible();
+  });
+
+  test('reconnects the video stream immediately after restore when the socket closed while hidden', async ({
+    page,
+  }) => {
+    const videoSockets = [];
+    page.on('websocket', (webSocket) => {
+      if (webSocket.url().includes('/ws/video')) {
+        videoSockets.push(webSocket);
+      }
+    });
+
+    await page.goto('/');
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
+    const initialSocketCount = videoSockets.length;
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+      window._videoWebSocket.close();
+    });
+
+    await page.waitForTimeout(100);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 3000 });
+    expect(videoSockets.length).toBe(initialSocketCount + 1);
+    expect(videoSockets.filter((webSocket) => !webSocket.isClosed())).toHaveLength(1);
+  });
+
+  test('ignores stale video socket callbacks after a replacement connection', async ({ page }) => {
+    const videoSockets = [];
+    page.on('websocket', (webSocket) => {
+      if (webSocket.url().includes('/ws/video')) {
+        videoSockets.push(webSocket);
+      }
+    });
+
+    await page.goto('/');
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
+    const firstSocket = videoSockets[0];
+
+    await page.evaluate(() => {
+      window._videoWebSocket.close();
+    });
+    await expect(page.getByText('STREAM RECONNECTING').first()).toBeVisible({
+      timeout: 2000,
+    });
+    await expect.poll(() => videoSockets.length).toBe(2, { timeout: 5000 });
+
+    await page.evaluate(() => {
+      window._videoWebSocket.send('frame');
+    });
+    await page.waitForTimeout(100);
+
+    expect(firstSocket.isClosed()).toBe(true);
+    expect(videoSockets.length).toBe(2);
+    await expect.poll(() => videoSockets.length, { timeout: 1000 }).toBe(2);
   });
 
   test('displays Gateway Offline status and recovers connection when available', async ({

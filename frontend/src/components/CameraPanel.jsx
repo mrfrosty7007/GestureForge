@@ -27,13 +27,34 @@ export default function CameraPanel({
   const manualDisconnectRef = useRef(false);
   const pendingFrameRef = useRef(null);
   const renderingFrameRef = useRef(false);
+  const animationFrameRef = useRef(null);
+  const scheduleRenderRef = useRef(null);
+  const mountedRef = useRef(true);
+  const streamStateRef = useRef('reconnecting');
+  const connectionGenerationRef = useRef(0);
+  const renderGenerationRef = useRef(0);
 
   const hasGesture = gestureData && gestureData.gesture && gestureData.gesture !== 'None';
   const primaryGesture = hasGesture ? gestureData.gesture : null;
   const hands = gestureData && Array.isArray(gestureData.hands) ? gestureData.hands : [];
 
+  const updateStreamState = useCallback((nextState) => {
+    streamStateRef.current = nextState;
+    setStreamState((currentState) => (currentState === nextState ? currentState : nextState));
+  }, []);
+
+  const cancelRender = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    pendingFrameRef.current = null;
+    renderGenerationRef.current += 1;
+  }, []);
+
   // Safely close active video WebSocket
   const closeWebSocket = useCallback(() => {
+    connectionGenerationRef.current += 1;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -52,49 +73,78 @@ export default function CameraPanel({
         window._videoWebSocket = null;
       }
     }
-    pendingFrameRef.current = null;
-  }, []);
+    cancelRender();
+  }, [cancelRender]);
 
-  const renderLatestFrame = useCallback(() => {
-    if (renderingFrameRef.current || !pendingFrameRef.current) return;
+  const scheduleRender = useCallback(() => {
+    if (
+      !mountedRef.current ||
+      animationFrameRef.current !== null ||
+      renderingFrameRef.current ||
+      !pendingFrameRef.current
+    ) {
+      return;
+    }
 
-    renderingFrameRef.current = true;
-    const frame = pendingFrameRef.current;
-    pendingFrameRef.current = null;
-    createImageBitmap(frame)
-      .then((bitmap) => {
-        if (!canvasRef.current) {
+    animationFrameRef.current = requestAnimationFrame(() => {
+      animationFrameRef.current = null;
+      if (!mountedRef.current || renderingFrameRef.current || !pendingFrameRef.current) {
+        return;
+      }
+
+      const frame = pendingFrameRef.current;
+      const renderGeneration = renderGenerationRef.current;
+      pendingFrameRef.current = null;
+      renderingFrameRef.current = true;
+
+      createImageBitmap(frame)
+        .then((bitmap) => {
+          if (
+            !mountedRef.current ||
+            renderGeneration !== renderGenerationRef.current ||
+            !canvasRef.current
+          ) {
+            bitmap.close();
+            return;
+          }
+          const canvas = canvasRef.current;
+          if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
+            canvas.width = bitmap.width;
+            canvas.height = bitmap.height;
+          }
+          const ctx = canvas.getContext('2d');
+          if (ctx) ctx.drawImage(bitmap, 0, 0);
           bitmap.close();
-          return;
-        }
-        const canvas = canvasRef.current;
-        if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
-          canvas.width = bitmap.width;
-          canvas.height = bitmap.height;
-        }
-        const ctx = canvas.getContext('2d');
-        if (ctx) ctx.drawImage(bitmap, 0, 0);
-        bitmap.close();
-        setStreamState('active');
-      })
-      .catch((err) => {
-        console.warn('Frame render error:', err);
-      })
-      .finally(() => {
-        renderingFrameRef.current = false;
-        renderLatestFrame();
-      });
-  }, []);
+          if (streamStateRef.current !== 'active') {
+            updateStreamState('active');
+          }
+        })
+        .catch((err) => {
+          if (mountedRef.current && renderGeneration === renderGenerationRef.current) {
+            console.warn('Frame render error:', err);
+          }
+        })
+        .finally(() => {
+          renderingFrameRef.current = false;
+          if (mountedRef.current && pendingFrameRef.current) {
+            scheduleRenderRef.current?.();
+          }
+        });
+    });
+  }, [updateStreamState]);
+  scheduleRenderRef.current = scheduleRender;
 
   // Connect to backend WebSocket /ws/video
   const connectStream = useCallback(() => {
     closeWebSocket();
+    if (!mountedRef.current) return;
     manualDisconnectRef.current = false;
-    setStreamState('reconnecting');
+    updateStreamState('reconnecting');
     setErrorMessage('');
 
     const host = window.location.hostname || '127.0.0.1';
     const wsUrl = `ws://${host}:8000/ws/video`;
+    const connectionGeneration = connectionGenerationRef.current;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -105,46 +155,58 @@ export default function CameraPanel({
       }
 
       ws.onopen = () => {
-        setStreamState('active');
+        if (!mountedRef.current || connectionGeneration !== connectionGenerationRef.current) return;
+        updateStreamState('active');
         setErrorMessage('');
       };
 
       ws.onmessage = (event) => {
-        if (event.data instanceof Blob) {
+        if (
+          mountedRef.current &&
+          connectionGeneration === connectionGenerationRef.current &&
+          event.data instanceof Blob
+        ) {
           pendingFrameRef.current = event.data;
-          renderLatestFrame();
+          scheduleRender();
         }
       };
 
       ws.onerror = () => {
-        if (!manualDisconnectRef.current) {
-          setStreamState('reconnecting');
+        if (
+          mountedRef.current &&
+          connectionGeneration === connectionGenerationRef.current &&
+          !manualDisconnectRef.current
+        ) {
+          updateStreamState('reconnecting');
         }
       };
 
       ws.onclose = () => {
+        if (!mountedRef.current || connectionGeneration !== connectionGenerationRef.current) {
+          return;
+        }
         if (!manualDisconnectRef.current) {
-          setStreamState('reconnecting');
+          updateStreamState('reconnecting');
           // Automatically attempt reconnection every 2.5 seconds
           reconnectTimeoutRef.current = setTimeout(() => {
             connectStream();
           }, 2500);
         } else {
-          setStreamState('offline');
+          updateStreamState('offline');
         }
       };
     } catch (err) {
-      setStreamState('offline');
+      updateStreamState('offline');
       setErrorMessage(err.message || 'Failed to connect to video stream');
     }
-  }, [closeWebSocket, renderLatestFrame]);
+  }, [closeWebSocket, scheduleRender, updateStreamState]);
 
   // User manual control actions
   const handleDisconnect = useCallback(() => {
     manualDisconnectRef.current = true;
     closeWebSocket();
-    setStreamState('offline');
-  }, [closeWebSocket]);
+    updateStreamState('offline');
+  }, [closeWebSocket, updateStreamState]);
 
   const handleConnect = useCallback(() => {
     connectStream();
@@ -156,15 +218,26 @@ export default function CameraPanel({
 
   // Mount / Unmount lifecycle
   useEffect(() => {
+    mountedRef.current = true;
     connectStream();
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send('frame');
+      if (document.visibilityState === 'hidden') {
+        renderGenerationRef.current += 1;
+        pendingFrameRef.current = null;
+        return;
+      }
+      if (document.visibilityState === 'visible') {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send('frame');
+        } else if (!manualDisconnectRef.current) {
+          connectStream();
+        }
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
+      mountedRef.current = false;
       manualDisconnectRef.current = true;
       closeWebSocket();
       document.removeEventListener('visibilitychange', handleVisibilityChange);

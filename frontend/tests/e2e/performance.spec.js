@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Part 5 — Performance, Connection Stability & Responsiveness', () => {
-  test('maintains a single active WebSocket connection with zero duplicates', async ({
-    page,
-  }) => {
+  test('maintains a single active WebSocket connection with zero duplicates', async ({ page }) => {
     const wsConnections = [];
 
     page.on('websocket', (ws) => {
@@ -131,5 +129,51 @@ test.describe('Part 5 — Performance, Connection Stability & Responsiveness', (
     expect(canInteract).toBe(true);
     // Main thread responsiveness should be well under 100ms
     expect(latency).toBeLessThan(150);
+  });
+
+  test('coalesces rapid video frames into one display-synchronized render path', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.__renderStats = { scheduled: 0, executed: 0, decoded: 0 };
+      const originalRequestAnimationFrame = window.requestAnimationFrame.bind(window);
+      window.requestAnimationFrame = (callback) => {
+        window.__renderStats.scheduled += 1;
+        return originalRequestAnimationFrame((timestamp) => {
+          window.__renderStats.executed += 1;
+          callback(timestamp);
+        });
+      };
+      window.createImageBitmap = async () => {
+        window.__renderStats.decoded += 1;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return {
+          width: 640,
+          height: 480,
+          close() {},
+        };
+      };
+    });
+
+    await page.goto('/');
+    await expect(page.getByText('STREAM ONLINE').first()).toBeVisible({ timeout: 10000 });
+
+    await page.evaluate(() => {
+      const publisher = new WebSocket('ws://127.0.0.1:8000/ws/video');
+      publisher.binaryType = 'arraybuffer';
+      publisher.addEventListener('open', () => {
+        const frame = new Uint8Array([1, 2, 3, 4]).buffer;
+        for (let index = 0; index < 20; index += 1) {
+          publisher.send(frame);
+        }
+        setTimeout(() => publisher.close(), 100);
+      });
+    });
+
+    await page.waitForTimeout(500);
+    const stats = await page.evaluate(() => window.__renderStats);
+    expect(stats.decoded).toBeGreaterThan(0);
+    expect(stats.scheduled - stats.executed).toBeLessThanOrEqual(1);
+    expect(stats.decoded).toBeLessThan(20);
   });
 });
