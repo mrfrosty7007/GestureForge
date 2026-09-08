@@ -335,9 +335,7 @@ async def video_feed():
                 if frame is not None:
                     yield (
                         b"--frame\r\n"
-                        b"Content-Type: image/jpeg\r\n\r\n"
-                        + frame
-                        + b"\r\n"
+                        b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
                     )
                 # Small delay to prevent overwhelming the connection
                 import time

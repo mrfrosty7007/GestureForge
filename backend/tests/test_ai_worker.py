@@ -13,7 +13,6 @@ from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -240,6 +239,7 @@ def test_lifecycle_and_shutdown_logging(caplog: Any) -> None:
     """Verify that all 5 required log messages are emitted during client and worker lifecycles."""
     import asyncio
     import logging
+
     from backend.main import lifespan
 
     caplog.set_level(logging.INFO)
@@ -272,5 +272,3 @@ def test_lifecycle_and_shutdown_logging(caplog: Any) -> None:
     assert "Client disconnected" in log_text
     assert "Camera released" in log_text
     assert "Backend shutdown complete" in log_text
-
-

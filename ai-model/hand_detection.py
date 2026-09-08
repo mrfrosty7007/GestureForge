@@ -12,6 +12,7 @@ Operates in headless mode by default (no GUI windows), with an optional
 import collections
 import contextlib
 import logging
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -19,7 +20,7 @@ from typing import Any
 
 import cv2
 import mediapipe as mp
-import requests
+import numpy as np
 from gesture_classifier import GestureClassifier
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,147 @@ VALID_GESTURES = {
     "Rock",
     "Call Me",
 }
+
+
+class ThreadedCamera:
+    """Lightweight threaded camera reader maintaining only the latest frame.
+
+    Responsibilities:
+    - Owns cv2.VideoCapture hardware lifecycle.
+    - Continuously polls cap.read() on a dedicated daemon thread.
+    - Overwrites a single-frame buffer (never queues frames).
+    - Stops cleanly when consumer becomes inactive or when released.
+    - Non-blocking frame retrieval eliminates camera hardware I/O wait from AI worker.
+    """
+
+    def __init__(
+        self,
+        camera_index: int = 0,
+        backend: int | None = None,
+        stop_event: threading.Event | None = None,
+    ) -> None:
+        self.camera_index = camera_index
+        self.backend = (
+            backend
+            if backend is not None
+            else (cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY)
+        )
+        self._parent_stop_event = stop_event
+        self._cap: cv2.VideoCapture | None = None
+        self._thread: threading.Thread | None = None
+        self._running = False
+        self._is_opened = False
+        self._lock = threading.Lock()
+        self._latest_frame: np.ndarray | None = None
+        self._frame_id: int = 0
+        self._status: str = "offline"  # "active", "degraded", "offline"
+
+    @property
+    def status(self) -> str:
+        """Current camera hardware state."""
+        with self._lock:
+            return self._status
+
+    def is_opened(self) -> bool:
+        """Returns True if the camera capture device is opened."""
+        if self._cap is None:
+            return False
+        return self._cap.isOpened()
+
+    def start(self) -> bool:
+        """Opens VideoCapture with explicit configuration and starts reader thread."""
+        with self._lock:
+            if self._running:
+                return True
+
+            self._cap = cv2.VideoCapture(self.camera_index, self.backend)
+            if not self._cap.isOpened():
+                self._status = "offline"
+                return False
+
+            self._is_opened = True
+            # Explicit Camera Configuration (Target 30 FPS at 640x480, single-frame buffer)
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self._cap.set(cv2.CAP_PROP_FPS, 30)
+            self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            # Prime initial frame
+            success, initial_frame = self._cap.read()
+            if not success or initial_frame is None:
+                self._status = "degraded"
+                with contextlib.suppress(Exception):
+                    self._cap.release()
+                self._cap = None
+                return False
+
+            self._latest_frame = initial_frame
+            self._frame_id = 1
+            self._status = "active"
+            logger.info("Camera opened")
+            self._running = True
+
+            self._thread = threading.Thread(
+                target=self._reader_loop,
+                name="GestureForge-ThreadedCamera",
+                daemon=True,
+            )
+            self._thread.start()
+            return True
+
+    def _reader_loop(self) -> None:
+        """Continuously reads frames from VideoCapture and stores only the latest frame."""
+        consecutive_failures = 0
+        while self._running and self._is_opened:
+            if self._parent_stop_event and self._parent_stop_event.is_set():
+                break
+            cap = self._cap
+            if cap is None:
+                break
+
+            success, frame = cap.read()
+            if not success or frame is None:
+                consecutive_failures += 1
+                if consecutive_failures >= 5:
+                    with self._lock:
+                        self._status = "degraded"
+                    break
+                time.sleep(0.005)
+                continue
+
+            consecutive_failures = 0
+            with self._lock:
+                self._latest_frame = frame
+                self._frame_id += 1
+                self._status = "active"
+
+    def get_latest_frame(self) -> np.ndarray | None:
+        """Returns the latest captured frame without waiting for camera hardware."""
+        with self._lock:
+            return self._latest_frame
+
+    def get_latest_frame_with_id(self) -> tuple[np.ndarray | None, int]:
+        """Returns the latest captured frame and its monotonic frame ID."""
+        with self._lock:
+            return self._latest_frame, self._frame_id
+
+    def release(self) -> None:
+        """Stops the reader thread and releases the underlying VideoCapture."""
+        self._running = False
+        self._is_opened = False
+        thread = self._thread
+        if thread and thread.is_alive():
+            thread.join(timeout=1.0)
+        self._thread = None
+
+        with self._lock:
+            if self._cap is not None:
+                with contextlib.suppress(Exception):
+                    self._cap.release()
+                self._cap = None
+                logger.info("Camera released")
+            self._latest_frame = None
+            self._status = "offline"
 
 
 class VideoFramePublisher:
@@ -127,12 +269,16 @@ def send_gesture_async(
         payload["telemetry"] = telemetry
 
     def _worker() -> None:
-        with contextlib.suppress(requests.exceptions.RequestException):
+        try:
+            import requests
+
             requests.post(
                 BACKEND_URL,
                 json=payload,
                 timeout=REQUEST_TIMEOUT_SEC,
             )
+        except Exception:
+            pass
 
     # Launch daemon thread so network I/O never blocks the camera loop
     threading.Thread(target=_worker, daemon=True).start()
@@ -155,7 +301,7 @@ class AIWorker:
         camera_index: int = 0,
         headless: bool = True,
         target_camera_fps: float = 30.0,
-        target_stream_fps: float = 15.0,
+        target_stream_fps: float = 30.0,
         on_gesture: Callable[[dict[str, Any]], None] | None = None,
         on_frame: Callable[[bytes], None] | None = None,
     ) -> None:
@@ -170,7 +316,9 @@ class AIWorker:
         self._stop_event = threading.Event()
         self._consumer_active = threading.Event()
         self._consumer_active.set()
-        self._camera_status: str = "offline"  # "active", "standby", "degraded", "offline"
+        self._camera_status: str = (
+            "offline"  # "active", "standby", "degraded", "offline"
+        )
         self._worker_status: str = "stopped"  # "running", "stopped", "failed"
         self._lock = threading.Lock()
         self._last_stream_time: float = 0.0
@@ -262,13 +410,14 @@ class AIWorker:
         frame_count = 0
         last_sent_hands_state = None
         last_sent_time = 0.0
-        cap: cv2.VideoCapture | None = None
+        camera: ThreadedCamera | None = None
         hands: Any = None
 
         try:
             hands = mp_hands.Hands(
                 static_image_mode=False,
                 max_num_hands=2,
+                model_complexity=0,
                 min_detection_confidence=0.7,
                 min_tracking_confidence=0.7,
             )
@@ -287,29 +436,35 @@ class AIWorker:
                 # ---------------------------------------------------------
                 # Camera Acquisition & Health Management
                 # ---------------------------------------------------------
-                cap = cv2.VideoCapture(self.camera_index)
-                if not cap.isOpened():
-                    self._camera_status = "offline"
+                backend = (
+                    cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY
+                )
+                camera = ThreadedCamera(
+                    self.camera_index, backend, stop_event=self._stop_event
+                )
+                if not camera.start():
+                    self._camera_status = camera.status
                     # Wait before retrying camera acquisition
                     self._stop_event.wait(1.0)
                     continue
 
                 self._camera_status = "active"
-                logger.info("Camera opened")
-                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
                 try:
                     while (
                         not self._stop_event.is_set()
                         and self._consumer_active.is_set()
-                        and cap.isOpened()
+                        and camera.is_opened()
                     ):
                         loop_start = time.perf_counter()
-                        success, frame = cap.read()
-                        if not success or frame is None:
-                            self._camera_status = "degraded"
-                            self._stop_event.wait(0.5)
-                            break
+                        frame = camera.get_latest_frame()
+                        if frame is None:
+                            if camera.status == "degraded":
+                                self._camera_status = "degraded"
+                                self._stop_event.wait(0.5)
+                                break
+                            self._stop_event.wait(0.002)
+                            continue
 
                         self._camera_status = "active"
                         frame_count += 1
@@ -388,9 +543,7 @@ class AIWorker:
                                     active_confidence = confidence
 
                                 # Per-hand wrist tag
-                                wrist = hand_landmarks.landmark[
-                                    GestureClassifier.WRIST
-                                ]
+                                wrist = hand_landmarks.landmark[GestureClassifier.WRIST]
                                 wrist_px = (
                                     int(wrist.x * w),
                                     int(wrist.y * h) + 25,
@@ -429,9 +582,7 @@ class AIWorker:
 
                         should_dispatch = False
                         if detected_hands:
-                            hands_changed = (
-                                current_hands_state != last_sent_hands_state
-                            )
+                            hands_changed = current_hands_state != last_sent_hands_state
                             cooldown_expired = (
                                 current_time - last_sent_time
                             ) >= DEBOUNCE_COOLDOWN_SEC
@@ -542,12 +693,12 @@ class AIWorker:
                         )
 
                         # -------------------------------------------------
-                        # Throttled Stream Delivery (10–15 FPS)
+                        # Stream Delivery (Target ~30 FPS)
                         # -------------------------------------------------
                         stream_interval = 1.0 / max(1.0, self.target_stream_fps)
-                        if (
-                            current_time - self._last_stream_time
-                        ) >= stream_interval:
+                        if (current_time - self._last_stream_time) >= (
+                            stream_interval - 0.005
+                        ):
                             _, buffer = cv2.imencode(
                                 ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75]
                             )
@@ -577,13 +728,10 @@ class AIWorker:
                                 if sleep_sec > 0.002:
                                     self._stop_event.wait(sleep_sec)
                 finally:
-                    if cap is not None:
-                        try:
-                            cap.release()
-                        except Exception:
-                            pass
-                        cap = None
-                        logger.info("Camera released")
+                    if camera is not None:
+                        with contextlib.suppress(Exception):
+                            camera.release()
+                        camera = None
                     self._camera_status = (
                         "offline" if self._stop_event.is_set() else "standby"
                     )
@@ -592,28 +740,419 @@ class AIWorker:
             logger.error("Unexpected error in AIWorker thread: %s", exc)
             self._worker_status = "failed"
         finally:
-            if cap is not None:
-                try:
-                    cap.release()
-                except Exception:
-                    pass
-                cap = None
-                logger.info("Camera released")
+            if camera is not None:
+                with contextlib.suppress(Exception):
+                    camera.release()
+                camera = None
             if hands is not None:
-                try:
+                with contextlib.suppress(Exception):
                     hands.close()
-                except Exception:
-                    pass
             if video_publisher:
                 video_publisher.stop()
             if not self.headless:
-                try:
+                with contextlib.suppress(Exception):
                     cv2.destroyAllWindows()
-                except Exception:
-                    pass
             self._camera_status = "offline"
             if self._worker_status != "failed":
                 self._worker_status = "stopped"
+
+
+GESTURE_EMOJI_MAP: dict[str, tuple[str, str]] = {
+    "Open Palm": ("\u270b", "Open Palm"),
+    "Palm": ("\u270b", "Open Palm"),
+    "Closed Fist": ("\u270a", "Closed Fist"),
+    "Fist": ("\u270a", "Closed Fist"),
+    "Thumbs Up": ("\U0001f44d", "Thumbs Up"),
+    "Peace": ("\u270c\ufe0f", "Peace"),
+    "OK": ("\U0001f44c", "OK"),
+    "Pointing": ("\u261d\ufe0f", "Pointing"),
+    "One Finger": ("\u261d\ufe0f", "Pointing"),
+    "Rock": ("\U0001f918", "Rock"),
+    "Call Me": ("\U0001f919", "Call Me"),
+}
+
+
+def _init_emoji_patches() -> dict[str, np.ndarray]:
+    """Pre-renders emoji glyphs into RGBA numpy arrays for zero-latency in-frame alpha blending."""
+    patches: dict[str, np.ndarray] = {}
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        font_candidates = [
+            "seguiemj.ttf",
+            "C:\\Windows\\Fonts\\seguiemj.ttf",
+            "Apple Color Emoji.ttc",
+            "NotoColorEmoji.ttf",
+        ]
+        font = None
+        for fc in font_candidates:
+            try:
+                font = ImageFont.truetype(fc, 19)
+                break
+            except Exception:
+                continue
+
+        if font is None:
+            return patches
+
+        symbols = [
+            "\u270b",  # ✋
+            "\u270a",  # ✊
+            "\U0001f44d",  # 👍
+            "\u270c\ufe0f",  # ✌️
+            "\U0001f44c",  # 👌
+            "\u261d\ufe0f",  # ☝️
+            "\U0001f918",  # 🤘
+            "\U0001f919",  # 🤙
+            "\u2754",  # ❔
+        ]
+        for sym in symbols:
+            im = Image.new("RGBA", (22, 22), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(im)
+            draw.text((0, 0), sym, font=font, embedded_color=True)
+            patches[sym] = np.array(im)
+    except Exception as exc:
+        logger.debug("Emoji pre-rendering unavailable: %s", exc)
+
+    return patches
+
+
+def _draw_native_hud(
+    frame: np.ndarray,
+    fps: float,
+    latency_ms: float,
+    hand_count: int,
+    gesture_name: str,
+    emoji_patches: dict[str, np.ndarray],
+) -> None:
+    """Renders a translucent glass HUD panel in the top-left of the camera frame."""
+    h_frame, w_frame = frame.shape[:2]
+
+    panel_x1, panel_y1 = 12, 12
+    panel_x2, panel_y2 = 255, 156
+
+    if panel_x2 > w_frame or panel_y2 > h_frame:
+        return
+
+    # Glass effect using cv2.addWeighted()
+    sub_roi = frame[panel_y1:panel_y2, panel_x1:panel_x2]
+    glass_tint = np.full_like(sub_roi, (18, 18, 22), dtype=np.uint8)
+    cv2.addWeighted(glass_tint, 0.70, sub_roi, 0.30, 0, sub_roi)
+    frame[panel_y1:panel_y2, panel_x1:panel_x2] = sub_roi
+
+    # Subtle border
+    cv2.rectangle(frame, (panel_x1, panel_y1), (panel_x2, panel_y2), (75, 80, 90), 1)
+
+    # Header: GestureForge
+    cv2.putText(
+        frame,
+        "GestureForge",
+        (panel_x1 + 12, panel_y1 + 25),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.65,
+        (0, 235, 255),
+        2,
+        cv2.LINE_AA,
+    )
+
+    # Line 1: FPS
+    fps_color = (0, 255, 128) if fps >= 25.0 else (0, 200, 255)
+    cv2.putText(
+        frame,
+        f"FPS: {fps:.1f}",
+        (panel_x1 + 12, panel_y1 + 52),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        fps_color,
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 2: Latency
+    cv2.putText(
+        frame,
+        f"Latency: {int(round(latency_ms))} ms",
+        (panel_x1 + 12, panel_y1 + 76),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (220, 220, 220),
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 3: Hands
+    cv2.putText(
+        frame,
+        f"Hands: {hand_count}",
+        (panel_x1 + 12, panel_y1 + 100),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (220, 220, 220),
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 4: Gesture: [Emoji] [Name]
+    if hand_count > 0 and gesture_name in GESTURE_EMOJI_MAP:
+        emoji_sym, disp_name = GESTURE_EMOJI_MAP[gesture_name]
+    else:
+        emoji_sym, disp_name = ("\u2754", "None")
+
+    label_prefix = "Gesture: "
+    cv2.putText(
+        frame,
+        label_prefix,
+        (panel_x1 + 12, panel_y1 + 126),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (220, 220, 220),
+        1,
+        cv2.LINE_AA,
+    )
+
+    (prefix_w, _), _ = cv2.getTextSize(label_prefix, cv2.FONT_HERSHEY_SIMPLEX, 0.48, 1)
+
+    cur_x = panel_x1 + 12 + prefix_w + 2
+    patch = emoji_patches.get(emoji_sym)
+    if patch is not None:
+        pw, ph = patch.shape[1], patch.shape[0]
+        py = panel_y1 + 126 - 17
+        if py >= 0 and py + ph <= h_frame and cur_x + pw <= w_frame:
+            roi = frame[py : py + ph, cur_x : cur_x + pw]
+            alpha = patch[:, :, 3:4].astype(np.float32) / 255.0
+            bgr = patch[:, :, :3][:, :, ::-1]
+            frame[py : py + ph, cur_x : cur_x + pw] = (
+                bgr * alpha + roi * (1.0 - alpha)
+            ).astype(np.uint8)
+            cur_x += pw + 5
+
+    gesture_text_color = (0, 255, 200) if disp_name != "None" else (160, 160, 160)
+    cv2.putText(
+        frame,
+        disp_name,
+        (cur_x, panel_y1 + 126),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        gesture_text_color,
+        1,
+        cv2.LINE_AA,
+    )
+
+
+def _letterbox_frame(frame: np.ndarray, target_w: int, target_h: int) -> np.ndarray:
+    """Scales frame into target window dimensions preserving aspect ratio with black letterboxing."""
+    if target_w <= 0 or target_h <= 0:
+        return frame
+
+    src_h, src_w = frame.shape[:2]
+    if src_w == target_w and src_h == target_h:
+        return frame
+
+    scale = min(target_w / src_w, target_h / src_h)
+    new_w = max(1, int(src_w * scale))
+    new_h = max(1, int(src_h * scale))
+
+    resized = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+
+    if new_w == target_w and new_h == target_h:
+        return resized
+
+    canvas = np.zeros((target_h, target_w, 3), dtype=np.uint8)
+    dx = (target_w - new_w) // 2
+    dy = (target_h - new_h) // 2
+    canvas[dy : dy + new_h, dx : dx + new_w] = resized
+    return canvas
+
+
+def run_native_camera_app(camera_index: int = 0) -> None:
+    """High-performance standalone OpenCV camera application for live gesture recognition.
+
+    Features:
+    - ThreadedCamera async capture thread (eliminates blocking I/O).
+    - MediaPipe Hands detection (model_complexity=0 for minimum latency).
+    - Gesture recognition via GestureClassifier.
+    - Minimal translucent HUD: FPS, live latency (ms), hand count, emoji + gesture name.
+    - Fullscreen toggle ('f' / 'F') preserving aspect ratio with black letterboxing.
+    - Zero JPEG encoding, zero networking, zero frame copies.
+    - Clean exit on 'q' or 'Q'.
+    """
+    mp_hands = mp.solutions.hands
+    mp_drawing = mp.solutions.drawing_utils
+    mp_drawing_styles = mp.solutions.drawing_styles
+
+    classifier = GestureClassifier()
+    emoji_patches = _init_emoji_patches()
+
+    backend = cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY
+    camera = ThreadedCamera(camera_index, backend)
+    if not camera.start():
+        logger.error("Failed to open camera device %d", camera_index)
+        print(f"Error: Unable to open camera device {camera_index}.")
+        return
+
+    window_name = "GestureForge"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, 640, 480)
+    cv2.setWindowProperty(window_name, cv2.WND_PROP_ASPECT_RATIO, cv2.WINDOW_KEEPRATIO)
+    is_fullscreen = False
+
+    hands: Any = None
+    try:
+        hands = mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=2,
+            model_complexity=0,
+            min_detection_confidence=0.7,
+            min_tracking_confidence=0.7,
+        )
+
+        print("\n" + "=" * 60)
+        print("  GestureForge — Native Real-Time Gesture Recognition")
+        print("  Display: Native OpenCV Window ('GestureForge')")
+        print("  Controls: Press 'f' or 'F' to toggle fullscreen")
+        print("            Press 'q' or 'Q' to quit cleanly")
+        print("=" * 60 + "\n")
+
+        prev_perf = time.perf_counter()
+        frame_durations: collections.deque[float] = collections.deque(maxlen=30)
+        latency_samples: collections.deque[float] = collections.deque(maxlen=15)
+        last_frame_id = -1
+
+        while True:
+            frame, frame_id = camera.get_latest_frame_with_id()
+            if frame is None or frame_id == last_frame_id:
+                time.sleep(0.001)
+                continue
+            last_frame_id = frame_id
+            frame_t0 = time.perf_counter()
+
+            # Calculate rolling FPS
+            frame_delta = frame_t0 - prev_perf
+            prev_perf = frame_t0
+            if frame_delta > 0:
+                frame_durations.append(frame_delta)
+            rolling_fps = (
+                len(frame_durations) / sum(frame_durations) if frame_durations else 0.0
+            )
+
+            # Horizontal flip for intuitive mirror view
+            frame = cv2.flip(frame, 1)
+            h, w, _ = frame.shape
+
+            # MediaPipe RGB processing (zero-copy with writeable=False)
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            rgb_frame.flags.writeable = False
+            results = hands.process(rgb_frame)
+            rgb_frame.flags.writeable = True
+
+            primary_gesture = "None"
+            hand_count = (
+                len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
+            )
+
+            if results.multi_hand_landmarks:
+                for hand_idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                    # Draw hand landmarks
+                    mp_drawing.draw_landmarks(
+                        frame,
+                        hand_landmarks,
+                        mp_hands.HAND_CONNECTIONS,
+                        mp_drawing_styles.get_default_hand_landmarks_style(),
+                        mp_drawing_styles.get_default_hand_connections_style(),
+                    )
+
+                    gesture, confidence = classifier.classify(
+                        hand_landmarks, hand_id=hand_idx
+                    )
+
+                    if hand_idx == 0:
+                        primary_gesture = gesture
+
+                    # Handedness label if available
+                    label = ""
+                    if results.multi_handedness and hand_idx < len(
+                        results.multi_handedness
+                    ):
+                        c = results.multi_handedness[hand_idx].classification
+                        if c:
+                            label = f"{c[0].label}: "
+
+                    # Per-hand wrist tag
+                    _, tag_name = GESTURE_EMOJI_MAP.get(gesture, ("\u2754", gesture))
+                    wrist = hand_landmarks.landmark[GestureClassifier.WRIST]
+                    wrist_px = (
+                        int(wrist.x * w),
+                        min(h - 10, int(wrist.y * h) + 25),
+                    )
+                    cv2.putText(
+                        frame,
+                        f"{label}{tag_name} ({confidence})",
+                        wrist_px,
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (0, 255, 255),
+                        2,
+                        cv2.LINE_AA,
+                    )
+
+            # Measure frame processing latency
+            frame_latency = (time.perf_counter() - frame_t0) * 1000.0
+            latency_samples.append(frame_latency)
+            avg_latency = (
+                sum(latency_samples) / len(latency_samples) if latency_samples else 0.0
+            )
+
+            # Draw Minimal Native HUD
+            _draw_native_hud(
+                frame,
+                fps=rolling_fps,
+                latency_ms=avg_latency,
+                hand_count=hand_count,
+                gesture_name=primary_gesture,
+                emoji_patches=emoji_patches,
+            )
+
+            # Scale and display preserving aspect ratio
+            if is_fullscreen:
+                _, _, win_w, win_h = cv2.getWindowImageRect(window_name)
+                if win_w <= 0 or win_h <= 0:
+                    if sys.platform.startswith("win"):
+                        import ctypes
+
+                        win_w = ctypes.windll.user32.GetSystemMetrics(0)
+                        win_h = ctypes.windll.user32.GetSystemMetrics(1)
+                    else:
+                        win_w, win_h = 1920, 1080
+                display_frame = _letterbox_frame(frame, win_w, win_h)
+            else:
+                display_frame = frame
+
+            cv2.imshow(window_name, display_frame)
+
+            # Handle interactive keyboard controls
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord("q"), ord("Q")):
+                break
+            elif key in (ord("f"), ord("F")):
+                is_fullscreen = not is_fullscreen
+                if is_fullscreen:
+                    cv2.setWindowProperty(
+                        window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN
+                    )
+                else:
+                    cv2.setWindowProperty(
+                        window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_NORMAL
+                    )
+                    cv2.resizeWindow(window_name, 640, 480)
+
+    finally:
+        camera.release()
+        if hands is not None:
+            with contextlib.suppress(Exception):
+                hands.close()
+        with contextlib.suppress(Exception):
+            cv2.destroyAllWindows()
+        print("Camera released. GestureForge terminated cleanly.")
 
 
 def run_hand_detection(
@@ -633,10 +1172,8 @@ def run_hand_detection(
     finally:
         worker.stop()
         if preview or not headless:
-            try:
+            with contextlib.suppress(Exception):
                 cv2.destroyAllWindows()
-            except Exception:
-                pass
 
 
 def main() -> None:
@@ -644,18 +1181,7 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="GestureForge Real-Time Hand Detection Service"
-    )
-    parser.add_argument(
-        "--preview",
-        action="store_true",
-        help="Open an OpenCV desktop window for visual debugging",
-    )
-    parser.add_argument(
-        "--headless",
-        action="store_true",
-        default=True,
-        help="Run completely headless without opening any window (default: True)",
+        description="GestureForge Real-Time Hand Detection & Gesture Recognition"
     )
     parser.add_argument(
         "--camera",
@@ -663,24 +1189,18 @@ def main() -> None:
         default=0,
         help="Webcam device index (default: 0)",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        default=False,
+        help="Run headless background AI service for web streaming",
+    )
     args = parser.parse_args()
 
-    # --preview takes precedence over --headless
-    is_headless = not args.preview
-
-    print("=" * 65)
-    print("GestureForge — Real-Time Hand Detection & Gesture Recognition")
-    print(
-        f"Mode: {'Preview (Desktop Window)' if not is_headless else 'Headless (No GUI Window)'}"
-    )
-    print(f"Camera Device Index: {args.camera}")
-    print("=" * 65)
-
-    run_hand_detection(
-        headless=is_headless,
-        preview=args.preview,
-        camera_index=args.camera,
-    )
+    if args.headless:
+        run_hand_detection(headless=True, camera_index=args.camera)
+    else:
+        run_native_camera_app(camera_index=args.camera)
 
 
 if __name__ == "__main__":
