@@ -1,118 +1,155 @@
 # GestureForge
 
-Real-time AI-powered hand gesture recognition system built with MediaPipe, FastAPI, and React.
+**Real-Time Hand Gesture Recognition**
+
+GestureForge is a native real-time hand gesture recognition application built with **Python**, **OpenCV**, **MediaPipe**, and **scikit-learn**.
+
+It performs live hand tracking, gesture classification, and performance monitoring through a lightweight native OpenCV interface.
 
 ---
 
-## 📁 Folder Structure
+## Features
+
+* Native OpenCV interface
+* Real-time gesture recognition (28–30 FPS)
+* MediaPipe 21-hand-landmark tracking
+* Independent two-hand recognition
+* Live FPS counter
+* Live latency display
+* Live hand count
+* Left & Right hand gesture indicators with emojis
+* Fullscreen mode (`F`)
+* Instant camera cleanup (`Q`)
+
+---
+
+## Supported Gestures
+
+| Emoji | Gesture |
+| :---: | :--- |
+| ✋ | Open Palm |
+| ✊ | Closed Fist |
+| 👍 | Thumbs Up |
+| ✌️ | Peace |
+| 👌 | OK |
+| ☝️ | Pointing |
+| 🤘 | Rock |
+| 🤙 | Call Me |
+
+> **Note:** Both hands can be tracked and recognized simultaneously with independent gesture classification.
+
+---
+
+## Project Structure
 
 ```text
 GestureForge/
-├── backend/          # FastAPI backend (API gateway, routes, models)
-├── frontend/         # React + Vite frontend dashboard
-├── ai-model/         # MediaPipe models & gesture classifiers
-├── dataset/          # Raw frames & extracted landmark datasets
-├── docs/             # Setup guides & architecture documentation
-├── README.md         # Project overview & workflow
-└── .gitignore        # Ignored files & directories
+├── ai-model/        # MediaPipe pipeline, threaded camera runtime, gesture classifier
+├── backend/         # Archived backend components for future expansion
+├── frontend/        # Archived experimental web interface
+├── dataset/         # Landmark datasets
+├── docs/            # Documentation
+├── main.py          # Native application entrypoint
+├── pyproject.toml
+└── README.md
 ```
 
 ---
 
-## 👥 Team Workflow
+## Quick Start
 
-We are 4 developers building an MVP foundation for the SRM hackathon. We follow a simple Git branching model:
-
-* **`main`** — Stable, tested releases ready for demonstration.
-* **`develop`** — Active integration branch where features are combined and tested.
-* **Feature Branches** (`feature/<name>-<task>`) — Dedicated branch for each developer. Never push directly to `main` or `develop`.
-
-```text
-feature/dev1-mediapipe ──┐
-feature/dev2-backend   ──┼──> develop (Integration) ────> main (Stable MVP)
-feature/dev3-frontend  ──┤
-feature/dev4-dataset   ──┘
-```
-
-### Git Branching Rules
-
-1. Create a feature branch off `develop`:
-   ```bash
-   git checkout develop
-   git pull origin develop
-   git checkout -b feature/<your-name>-<feature>
-   ```
-2. Make your commits and push your branch:
-   ```bash
-   git push origin feature/<your-name>-<feature>
-   ```
-3. Open a Pull Request targeting `develop`. Once reviewed and approved, merge into `develop`.
-
----
-
-## 🚀 Quick Start (Full Stack MVP)
-
-Prerequisites: Install [`uv`](https://docs.astral.sh/uv/) and [`pnpm`](https://pnpm.io/).
-
-Initialize dependencies from the repository root:
+Run the application directly using [`uv`](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync
-pnpm --dir frontend install
+uv run python main.py
 ```
 
-Run the backend and frontend in separate terminals:
-
-### 1. Backend Gateway (Terminal 1)
+Alternative using standard Python:
 
 ```bash
-uv run uvicorn backend.main:app --reload
+python main.py
 ```
-
-- API Base: [http://127.0.0.1:8000](http://127.0.0.1:8000)
-- Health Check: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
-- Swagger Docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-
-### 2. Frontend Cyber Dashboard (Terminal 2)
-
-```bash
-pnpm --dir frontend dev
-```
-
-- Cyber Operations HUD: [http://localhost:5173](http://localhost:5173)
-
-The backend owns the single headless AI worker and webcam in the normal production-style flow. Do **not** start a second camera process alongside the backend.
-
-### Optional: AI Worker Preview / Debug
-
-```bash
-python ai-model/hand_detection.py --preview
-```
-
-- Use the standalone script only for explicit local computer-vision debugging. It owns the webcam while it runs, so stop the backend worker or set `GESTUREFORGE_DISABLE_AI_WORKER=1` first.
-- Press `Q` in the OpenCV preview window to quit cleanly.
-
-The dashboard receives video through the primary binary `WS /ws/video` latest-frame stream. `GET /video/feed` remains available as an MJPEG fallback for clients that cannot consume the WebSocket video stream; it is not the dashboard's primary path.
 
 ---
 
-## 🖐️ Recognized Gestures
+## Controls
 
-| Gesture | Description | Supported In |
-|:---|:---|:---:|
-| ✋ **Palm** | All 5 fingers extended outward | v1.0.0-MVP |
-| ✊ **Fist** | All 4 fingers folded, compact cluster, thumb wrapped | v1.0.0-MVP |
-| 👍 **Thumbs Up** | Thumb elevated & separated, 4 fingers folded | v1.0.0-MVP |
-| ☝️ **One Finger** | Only index finger extended upward | v1.0.0-MVP |
-| ✌️ **Peace** | Index and middle fingers extended | v1.0.0-MVP |
+| Key | Action |
+| :---: | :--- |
+| `F` | Toggle Fullscreen |
+| `Q` | Quit |
 
 ---
 
-## 🎯 Roadmap & Milestones
+## Live Metrics
 
-| Milestone | Status | Details |
-|:---|:---:|:---|
-| **Phase 0 — Foundation** | ✅ Complete | Repository structure, CI workflows, tooling, documentation |
-| **Phase 1 — Perception MVP** | ✅ Complete | MediaPipe tracking, 5 gestures, FastAPI gateway, React Cyber HUD |
-| **Phase 2 — Machine Learning** | ⏳ Next | Custom gesture dataset capture, feature extraction, ML classifiers |
-| **Phase 3 — System Polish** | ⏳ Planned | Expanded gestures, audio/visual triggers, hackathon showcase deck |
+The real-time native HUD displays:
+
+* **FPS**: Current pipeline throughput measured over recent frames
+* **Latency**: End-to-end processing latency in milliseconds
+* **Hands detected**: Number of active hands visible in the frame (0, 1, or 2)
+* **Left-hand gesture**: Real-time gesture classification and emoji indicator for the left hand
+* **Right-hand gesture**: Real-time gesture classification and emoji indicator for the right hand
+
+---
+
+## Performance
+
+| Metric | Value |
+| :--- | :--- |
+| FPS | 28–30 |
+| Latency | 34–40 ms |
+| Startup | ~1 s |
+| Hands | Up to 2 |
+
+---
+
+## Architecture
+
+```text
+Camera
+   │
+ThreadedCamera
+   │
+Latest Frame Buffer
+   │
+MediaPipe Hands
+   │
+Gesture Classifier
+   │
+Native OpenCV HUD
+```
+
+* **Threaded Camera Acquisition**: A dedicated worker thread captures webcam frames continuously via DirectShow (`cv2.CAP_DSHOW`) without blocking pipeline execution.
+* **Latest-Frame Buffering**: The buffer always retains only the most recent frame, preventing queue latency and ensuring minimum processing delay.
+* **MediaPipe Inference**: Uses MediaPipe Hands (`model_complexity=0`) to extract 21 3D landmarks per detected hand with sub-15ms inference latency.
+* **Gesture Classifier**: Identifies gestures for each hand independently using geometric finger-state analysis and landmark heuristic models.
+* **Native OpenCV HUD**: Overlays real-time performance metrics, dual-hand indicators, and controls via hardware-blended OpenCV rendering.
+
+---
+
+## Legacy Components
+
+The repository contains experimental components preserved for future architecture exploration:
+
+* **FastAPI Backend (`backend/`)**: Web API gateway and streaming services.
+* **React Frontend (`frontend/`)**: Browser-based telemetry interface.
+* **Tauri Shell (`frontend/src-tauri/`)**: Desktop application wrapper for the web frontend.
+
+These components are preserved for future expansion but are **not required** to run the native application.
+
+---
+
+## Future Improvements
+
+* Additional static and dynamic gesture classifications
+* Gesture-controlled system automation (media playback, slide navigation)
+* Hardware acceleration via ONNX Runtime and TensorRT
+* Optional telemetry dashboard restoration
+
+---
+
+## License
+
+Distributed under the MIT License. See [LICENSE](LICENSE) for details.
