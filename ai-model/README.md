@@ -54,12 +54,28 @@ The backend owns the headless AI worker and webcam in the normal integrated flow
 
 ### Optional: Start the AI Gesture Recognition Preview
 
+Always create and activate a virtual environment before installing dependencies:
+
+**Windows:**
+
 ```bash
-cd ai-model
-.venv\Scripts\activate          # Windows (source .venv/bin/activate on macOS/Linux)
-pip install -r requirements.txt
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r ai-model/requirements.txt
 python hand_detection.py --preview
 ```
+
+**macOS/Linux:**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r ai-model/requirements.txt
+python hand_detection.py --preview
+```
+
+> [!NOTE]
+> **Troubleshooting / Dependency Isolation:** MediaPipe pins `protobuf<5`, so installation should always be done inside the project's virtual environment to avoid conflicts with globally installed packages like Streamlit.
 
 Use this standalone command only for explicit local debugging. Stop the backend-owned worker first, or disable it with `GESTUREFORGE_DISABLE_AI_WORKER=1`, to prevent duplicate camera ownership.
 

@@ -65,11 +65,28 @@ uv sync
 uv run python main.py
 ```
 
-Alternative using standard Python:
+Alternative using standard Python (virtual environment):
+
+**Windows:**
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r ai-model/requirements.txt
 python main.py
 ```
+
+**macOS/Linux:**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r ai-model/requirements.txt
+python main.py
+```
+
+> [!NOTE]
+> **Troubleshooting / Dependency Isolation:** MediaPipe pins `protobuf<5`, so installation should always be done inside the project's virtual environment to avoid conflicts with globally installed packages like Streamlit.
 
 ---
 
