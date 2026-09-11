@@ -11,17 +11,29 @@ Operates in headless mode by default (no GUI windows), with an optional
 
 import collections
 import contextlib
+import csv
+import datetime
+import json
 import logging
 import sys
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import cv2
 import mediapipe as mp
 import numpy as np
 from gesture_classifier import GestureClassifier
+
+try:
+    from scripts.preprocess import normalize_landmarks
+except ImportError:
+    try:
+        from preprocess import normalize_landmarks
+    except ImportError:
+        normalize_landmarks = None
 
 logger = logging.getLogger(__name__)
 
@@ -967,140 +979,442 @@ def _letterbox_frame(frame: np.ndarray, target_w: int, target_h: int) -> np.ndar
     return canvas
 
 
-# Cached keyboard shortcut hint static assets
-_HINT_SEGMENTS: list[tuple[str, tuple[int, int, int]]] = [
-    ("[", (200, 200, 200)),
-    ("F", (0, 255, 128)),
-    ("] Fullscreen", (240, 240, 240)),
-    ("    ", (0, 0, 0)),
-    ("[", (200, 200, 200)),
-    ("Q", (0, 255, 128)),
-    ("] Quit", (240, 240, 240)),
-]
-_HINT_GAP_W = 20
-_HINT_PAD_X = 12
-_HINT_TEXT_W = sum(
-    (
-        _HINT_GAP_W
-        if txt == "    "
-        else cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)[0][0]
+class RecordingSession:
+    """Manages recording state, live event logging, and session output serialization."""
+
+    def __init__(self, output_root: str | Path = "recordings") -> None:
+        self.output_root = Path(output_root)
+        self.recording: bool = False
+        self.record_start_time: float | None = None
+        self.session_folder: Path | None = None
+        self.session_events: list[dict[str, Any]] = []
+        self.last_logged_gesture: str | None = None
+        self.last_log_time: float = 0.0
+        self.gesture_counter: dict[str, int] = collections.defaultdict(int)
+        self.confidence_samples: list[float] = []
+        self.fps_samples: list[float] = []
+
+    def reset(self) -> None:
+        """Resets all session state variables."""
+        self.recording = False
+        self.record_start_time = None
+        self.session_folder = None
+        self.session_events.clear()
+        self.last_logged_gesture = None
+        self.last_log_time = 0.0
+        self.gesture_counter.clear()
+        self.confidence_samples.clear()
+        self.fps_samples.clear()
+
+
+_active_session: RecordingSession | None = None
+
+
+def _format_relative_time(seconds: float) -> str:
+    """Formats relative elapsed seconds into HH:MM:SS.mmm format."""
+    total_millis = int(round(max(0.0, seconds) * 1000.0))
+    millis = total_millis % 1000
+    total_seconds = total_millis // 1000
+    secs = total_seconds % 60
+    mins = (total_seconds // 60) % 60
+    hours = total_seconds // 3600
+    return f"{hours:02d}:{mins:02d}:{secs:02d}.{millis:03d}"
+
+
+def start_recording(
+    session: RecordingSession | None = None,
+    output_root: str | Path = "recordings",
+) -> RecordingSession:
+    """Starts a new recording session and initializes its timestamped output directory.
+
+    Args:
+        session: Optional existing RecordingSession instance.
+        output_root: Root directory where timestamped session folders are created.
+
+    Returns:
+        RecordingSession: Active recording session instance.
+    """
+    global _active_session
+    if session is None:
+        session = RecordingSession(output_root=output_root)
+    else:
+        session.reset()
+        session.output_root = Path(output_root)
+
+    timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    session_folder = session.output_root / timestamp_str
+    session_folder.mkdir(parents=True, exist_ok=True)
+
+    session.session_folder = session_folder
+    session.record_start_time = time.perf_counter()
+    session.recording = True
+    session.last_log_time = 0.0
+    session.last_logged_gesture = None
+
+    _active_session = session
+    print("Recording started")
+    return session
+
+
+def stop_recording(session: RecordingSession | None = None) -> Path | None:
+    """Stops an active recording session and automatically saves all output reports.
+
+    Args:
+        session: Active RecordingSession instance, or None to use global session.
+
+    Returns:
+        Path | None: Path to the saved session directory, or None if not recording.
+    """
+    global _active_session
+    target = session or _active_session
+    if target is None or not target.recording:
+        return None
+
+    target.recording = False
+    print("Saving session...")
+    saved_folder = save_session(target)
+    if saved_folder:
+        print(f"Session saved to {saved_folder.as_posix()}")
+    return saved_folder
+
+
+def log_event(
+    session: RecordingSession | None = None,
+    gesture: str = "",
+    confidence: float = 0.0,
+    frame_number: int | None = None,
+    fps: float | None = None,
+    threshold: float = 55.0,
+    min_persist_sec: float = 0.5,
+) -> bool:
+    """Logs a recognized gesture event if requirements are met without duplicate frame spam.
+
+    Criteria:
+    - Session must be actively recording.
+    - Gesture must not be empty or 'None' / 'Unknown'.
+    - Confidence must meet or exceed threshold (default: 55.0%).
+    - Triggers if gesture has changed, OR same gesture has persisted for at least 500 ms.
+
+    Args:
+        session: Active RecordingSession instance.
+        gesture: Recognized gesture label (e.g. 'Open Palm').
+        confidence: Prediction confidence score as a percentage (0.0 - 100.0).
+        frame_number: Optional frame counter / sequence number.
+        fps: Optional current frame rate.
+        threshold: Confidence threshold for event eligibility.
+        min_persist_sec: Minimum duration in seconds before logging repeated gesture.
+
+    Returns:
+        bool: True if an event was recorded, False otherwise.
+    """
+    global _active_session
+    target = session or _active_session
+    if target is None or not target.recording or target.record_start_time is None:
+        return False
+
+    if not gesture or gesture in ("None", "Unknown"):
+        return False
+
+    if confidence < threshold:
+        return False
+
+    now = time.perf_counter()
+    time_since_last = now - target.last_log_time
+
+    gesture_changed = gesture != target.last_logged_gesture
+    time_exceeded = time_since_last >= min_persist_sec
+
+    if not (gesture_changed or time_exceeded):
+        return False
+
+    relative_sec = max(0.0, now - target.record_start_time)
+    timestamp_str = _format_relative_time(relative_sec)
+
+    event_record: dict[str, Any] = {
+        "timestamp": timestamp_str,
+        "gesture": gesture,
+        "confidence": round(float(confidence), 1),
+        "frame": frame_number if frame_number is not None else (len(target.session_events) + 1),
+    }
+    if fps is not None and fps > 0:
+        event_record["fps"] = round(float(fps), 1)
+        target.fps_samples.append(float(fps))
+
+    target.session_events.append(event_record)
+    target.last_logged_gesture = gesture
+    target.last_log_time = now
+    target.gesture_counter[gesture] += 1
+    target.confidence_samples.append(float(confidence))
+
+    return True
+
+
+def save_session(session: RecordingSession | None = None) -> Path | None:
+    """Saves session.json, session.csv, and summary.json into session_folder.
+
+    Args:
+        session: RecordingSession instance containing recorded events.
+
+    Returns:
+        Path | None: Path to the saved session folder, or None if failed.
+    """
+    global _active_session
+    target = session or _active_session
+    if target is None or target.session_folder is None:
+        return None
+
+    folder = target.session_folder
+    folder.mkdir(parents=True, exist_ok=True)
+
+    # 1. session.json: raw events list
+    session_json_path = folder / "session.json"
+    with open(session_json_path, "w", encoding="utf-8") as f:
+        json.dump(target.session_events, f, indent=2)
+
+    # 2. session.csv: tabular events
+    session_csv_path = folder / "session.csv"
+    with open(session_csv_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Time", "Gesture", "Confidence", "Frame"])
+        for ev in target.session_events:
+            writer.writerow([
+                ev["timestamp"],
+                ev["gesture"],
+                ev["confidence"],
+                ev.get("frame", ""),
+            ])
+
+    # 3. summary.json: session metrics and distributions
+    duration_sec = 0.0
+    if target.record_start_time is not None:
+        duration_sec = max(0.0, time.perf_counter() - target.record_start_time)
+
+    avg_conf = (
+        round(sum(target.confidence_samples) / len(target.confidence_samples), 1)
+        if target.confidence_samples
+        else 0.0
     )
-    for txt, _ in _HINT_SEGMENTS
-)
-_HINT_BADGE_W = _HINT_TEXT_W + 2 * _HINT_PAD_X
-_HINT_BADGE_H = 26
-_HINT_BADGE_R = 6
+    avg_fps = (
+        round(sum(target.fps_samples) / len(target.fps_samples), 1)
+        if target.fps_samples
+        else 0.0
+    )
 
-_HINT_MASK = np.zeros((_HINT_BADGE_H, _HINT_BADGE_W), dtype=np.uint8)
-cv2.rectangle(
-    _HINT_MASK,
-    (_HINT_BADGE_R, 0),
-    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_H),
-    255,
-    -1,
-)
-cv2.rectangle(
-    _HINT_MASK,
-    (0, _HINT_BADGE_R),
-    (_HINT_BADGE_W, _HINT_BADGE_H - _HINT_BADGE_R),
-    255,
-    -1,
-)
-cv2.circle(_HINT_MASK, (_HINT_BADGE_R, _HINT_BADGE_R), _HINT_BADGE_R, 255, -1)
-cv2.circle(
-    _HINT_MASK,
-    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_R),
-    _HINT_BADGE_R,
-    255,
-    -1,
-)
-cv2.circle(
-    _HINT_MASK,
-    (_HINT_BADGE_W - _HINT_BADGE_R, _HINT_BADGE_H - _HINT_BADGE_R),
-    _HINT_BADGE_R,
-    255,
-    -1,
-)
-cv2.circle(
-    _HINT_MASK,
-    (_HINT_BADGE_R, _HINT_BADGE_H - _HINT_BADGE_R),
-    _HINT_BADGE_R,
-    255,
-    -1,
-)
-_HINT_MASK_BOOL = _HINT_MASK == 255
+    summary_data: dict[str, Any] = {
+        "session duration": _format_relative_time(duration_sec),
+        "session_duration_seconds": round(duration_sec, 3),
+        "total events": len(target.session_events),
+        "total_events": len(target.session_events),
+        "gesture counts": dict(target.gesture_counter),
+        "gesture_counts": dict(target.gesture_counter),
+        "average confidence": avg_conf,
+        "average_confidence": avg_conf,
+        "average FPS": avg_fps,
+        "average_fps": avg_fps,
+    }
+
+    summary_json_path = folder / "summary.json"
+    with open(summary_json_path, "w", encoding="utf-8") as f:
+        json.dump(summary_data, f, indent=2)
+
+    return folder
 
 
-def _draw_shortcut_hints(image: np.ndarray) -> None:
-    """Renders a small translucent keyboard shortcut hint at the bottom-center of the image."""
-    h_img, w_img = image.shape[:2]
-    if w_img < _HINT_BADGE_W or h_img < _HINT_BADGE_H + 10:
+def _get_numeric_confidence(
+    classifier: GestureClassifier,
+    hand_landmarks: Any,
+    confidence_label: str,
+) -> float:
+    """Extracts numeric confidence score (0.0 to 100.0) from ML model probability or rule tier."""
+    if classifier.model is not None and hasattr(classifier.model, "predict_proba"):
+        try:
+            lm_list = (
+                hand_landmarks.landmark
+                if hasattr(hand_landmarks, "landmark")
+                else hand_landmarks
+            )
+            if lm_list and len(lm_list) >= 21 and normalize_landmarks is not None:
+                features = normalize_landmarks(lm_list).reshape(1, -1)
+                probs = classifier.model.predict_proba(features)[0]
+                best_prob = float(np.max(probs))
+                return round(best_prob * 100.0, 1)
+        except Exception:
+            pass
+
+    tier_map = {"High": 95.0, "Medium": 75.0, "Low": 45.0}
+    return tier_map.get(confidence_label, 0.0)
+
+
+def _draw_recording_hud(
+    frame: np.ndarray,
+    session: RecordingSession,
+    current_gesture: str,
+    current_confidence: float,
+) -> None:
+    """Renders a visible recording indicator overlay in the top-right of the frame."""
+    if not session.recording or session.record_start_time is None:
         return
 
-    # Responsive centering at bottom
-    x1 = (w_img - _HINT_BADGE_W) // 2
-    y1 = h_img - _HINT_BADGE_H - 12
-    x2 = x1 + _HINT_BADGE_W
-    y2 = y1 + _HINT_BADGE_H
+    h_frame, w_frame = frame.shape[:2]
+    panel_w = 210
+    panel_h = 106
+    pad = 12
+
+    x1 = w_frame - panel_w - pad
+    y1 = pad
+    x2 = w_frame - pad
+    y2 = y1 + panel_h
+
+    if x1 < 0 or y2 > h_frame:
+        return
+
+    # Glass tint overlay
+    sub_roi = frame[y1:y2, x1:x2]
+    glass_tint = np.full_like(sub_roi, (18, 18, 22), dtype=np.uint8)
+    cv2.addWeighted(glass_tint, 0.70, sub_roi, 0.30, 0, sub_roi)
+    frame[y1:y2, x1:x2] = sub_roi
+
+    # Subtle crimson border
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (70, 70, 180), 1)
+
+    # Line 1: 🔴 REC (pulsing dot) + Timer
+    is_blink_on = int(time.perf_counter() * 2) % 2 == 0
+    dot_color = (0, 0, 255) if is_blink_on else (40, 40, 160)
+    cv2.circle(frame, (x1 + 16, y1 + 22), 6, dot_color, -1, cv2.LINE_AA)
+
+    cv2.putText(
+        frame,
+        "REC",
+        (x1 + 28, y1 + 26),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.52,
+        (0, 0, 255),
+        2,
+        cv2.LINE_AA,
+    )
+
+    elapsed_sec = max(0.0, time.perf_counter() - session.record_start_time)
+    timer_str = _format_relative_time(elapsed_sec)
+    cv2.putText(
+        frame,
+        timer_str[:10],
+        (x1 + 75, y1 + 26),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.48,
+        (240, 240, 240),
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 2: Current Gesture
+    g_display = (
+        current_gesture
+        if current_gesture and current_gesture not in ("None", "Unknown")
+        else "None"
+    )
+    g_color = (0, 255, 200) if g_display != "None" else (160, 160, 160)
+    cv2.putText(
+        frame,
+        f"Gesture: {g_display}",
+        (x1 + 14, y1 + 49),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.44,
+        g_color,
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 3: Confidence
+    if current_confidence > 0 and g_display != "None":
+        conf_str = f"{current_confidence:.1f}%"
+        conf_color = (0, 255, 128) if current_confidence >= 80.0 else (0, 200, 255)
+    else:
+        conf_str = "N/A"
+        conf_color = (160, 160, 160)
+
+    cv2.putText(
+        frame,
+        f"Conf:    {conf_str}",
+        (x1 + 14, y1 + 70),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.44,
+        conf_color,
+        1,
+        cv2.LINE_AA,
+    )
+
+    # Line 4: Total Events Recorded
+    cv2.putText(
+        frame,
+        f"Events:  {len(session.session_events)}",
+        (x1 + 14, y1 + 92),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.44,
+        (220, 220, 220),
+        1,
+        cv2.LINE_AA,
+    )
+
+
+def _draw_shortcut_hints(image: np.ndarray, is_recording: bool = False) -> None:
+    """Renders a responsive translucent keyboard shortcut hint at the bottom-center of the frame."""
+    h_img, w_img = image.shape[:2]
+
+    r_key_col = (0, 80, 255) if is_recording else (0, 255, 128)
+    r_text = "] Stop Rec" if is_recording else "] Record"
+
+    segments: list[tuple[str, tuple[int, int, int]]] = [
+        ("[", (200, 200, 200)),
+        ("F", (0, 255, 128)),
+        ("] Fullscreen", (240, 240, 240)),
+        ("    ", (0, 0, 0)),
+        ("[", (200, 200, 200)),
+        ("R", r_key_col),
+        (r_text, (240, 240, 240)),
+        ("    ", (0, 0, 0)),
+        ("[", (200, 200, 200)),
+        ("Q", (0, 255, 128)),
+        ("] Quit", (240, 240, 240)),
+    ]
+
+    gap_w = 16
+    pad_x = 12
+    badge_h = 26
+
+    text_w = sum(
+        (
+            gap_w
+            if txt == "    "
+            else cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)[0][0]
+        )
+        for txt, _ in segments
+    )
+    badge_w = text_w + 2 * pad_x
+
+    if w_img < badge_w or h_img < badge_h + 10:
+        return
+
+    x1 = (w_img - badge_w) // 2
+    y1 = h_img - badge_h - 12
+    x2 = x1 + badge_w
+    y2 = y1 + badge_h
 
     sub_roi = image[y1:y2, x1:x2]
     glass_tint = np.full_like(sub_roi, (18, 18, 22), dtype=np.uint8)
-    blended = cv2.addWeighted(glass_tint, 0.70, sub_roi, 0.30, 0)
-    sub_roi[_HINT_MASK_BOOL] = blended[_HINT_MASK_BOOL]
+    cv2.addWeighted(glass_tint, 0.70, sub_roi, 0.30, 0, sub_roi)
+    image[y1:y2, x1:x2] = sub_roi
 
-    # Rounded border matching HUD styling
     border_color = (75, 80, 90)
-    br = _HINT_BADGE_R
-    bw = _HINT_BADGE_W
-    bh = _HINT_BADGE_H
-    cv2.line(sub_roi, (br, 0), (bw - br, 0), border_color, 1, cv2.LINE_AA)
-    cv2.line(sub_roi, (br, bh - 1), (bw - br, bh - 1), border_color, 1, cv2.LINE_AA)
-    cv2.line(sub_roi, (0, br), (0, bh - 1 - br), border_color, 1, cv2.LINE_AA)
-    cv2.line(sub_roi, (bw - 1, br), (bw - 1, bh - 1 - br), border_color, 1, cv2.LINE_AA)
-    cv2.ellipse(sub_roi, (br, br), (br, br), 0, 180, 270, border_color, 1, cv2.LINE_AA)
-    cv2.ellipse(
-        sub_roi,
-        (bw - 1 - br, br),
-        (br, br),
-        0,
-        270,
-        360,
-        border_color,
-        1,
-        cv2.LINE_AA,
-    )
-    cv2.ellipse(
-        sub_roi,
-        (bw - 1 - br, bh - 1 - br),
-        (br, br),
-        0,
-        0,
-        90,
-        border_color,
-        1,
-        cv2.LINE_AA,
-    )
-    cv2.ellipse(
-        sub_roi,
-        (br, bh - 1 - br),
-        (br, br),
-        0,
-        90,
-        180,
-        border_color,
-        1,
-        cv2.LINE_AA,
-    )
+    cv2.rectangle(image, (x1, y1), (x2, y2), border_color, 1)
 
-    # Key labels: white text with green accents for F and Q
-    cur_x = _HINT_PAD_X
-    text_y = 18
-    for txt, col in _HINT_SEGMENTS:
+    cur_x = x1 + pad_x
+    text_y = y1 + 18
+    for txt, col in segments:
         if txt == "    ":
-            cur_x += _HINT_GAP_W
+            cur_x += gap_w
             continue
         cv2.putText(
-            sub_roi,
+            image,
             txt,
             (cur_x, text_y),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -1110,8 +1424,6 @@ def _draw_shortcut_hints(image: np.ndarray) -> None:
             cv2.LINE_AA,
         )
         cur_x += cv2.getTextSize(txt, cv2.FONT_HERSHEY_SIMPLEX, 0.44, 1)[0][0]
-
-    image[y1:y2, x1:x2] = sub_roi
 
 
 def run_native_camera_app(camera_index: int = 0) -> None:
@@ -1161,9 +1473,11 @@ def run_native_camera_app(camera_index: int = 0) -> None:
         print("  GestureForge — Native Real-Time Gesture Recognition")
         print("  Display: Native OpenCV Window ('GestureForge')")
         print("  Controls: Press 'f' or 'F' to toggle fullscreen")
+        print("            Press 'r' or 'R' to start/stop evidence recording")
         print("            Press 'q' or 'Q' to quit cleanly")
         print("=" * 60 + "\n")
 
+        rec_session = RecordingSession()
         prev_perf = time.perf_counter()
         frame_durations: collections.deque[float] = collections.deque(maxlen=30)
         latency_samples: collections.deque[float] = collections.deque(maxlen=15)
@@ -1198,6 +1512,8 @@ def run_native_camera_app(camera_index: int = 0) -> None:
 
             left_gesture = "None"
             right_gesture = "None"
+            active_gesture = "None"
+            active_confidence = 0.0
             hand_count = (
                 len(results.multi_hand_landmarks) if results.multi_hand_landmarks else 0
             )
@@ -1255,12 +1571,31 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                         cv2.LINE_AA,
                     )
 
+                    # Track active gesture and numeric confidence for evidence recording
+                    num_conf = _get_numeric_confidence(classifier, hand_landmarks, confidence)
+                    if gesture not in ("None", "Unknown") and num_conf > active_confidence:
+                        active_gesture = tag_name
+                        active_confidence = num_conf
+
             # Measure frame processing latency
             frame_latency = (time.perf_counter() - frame_t0) * 1000.0
             latency_samples.append(frame_latency)
             avg_latency = (
                 sum(latency_samples) / len(latency_samples) if latency_samples else 0.0
             )
+
+            # Evidence recording: collect FPS samples and log events
+            if rec_session.recording:
+                if rolling_fps > 0:
+                    rec_session.fps_samples.append(rolling_fps)
+                if active_gesture not in ("None", "Unknown"):
+                    log_event(
+                        rec_session,
+                        gesture=active_gesture,
+                        confidence=active_confidence,
+                        frame_number=last_frame_id,
+                        fps=rolling_fps,
+                    )
 
             # Draw Minimal Native HUD
             _draw_native_hud(
@@ -1272,6 +1607,15 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                 right_gesture=right_gesture,
                 emoji_patches=emoji_patches,
             )
+
+            # Draw Recording Indicator HUD if recording is active
+            if rec_session.recording:
+                _draw_recording_hud(
+                    frame,
+                    session=rec_session,
+                    current_gesture=active_gesture,
+                    current_confidence=active_confidence,
+                )
 
             # Scale and display preserving aspect ratio
             if is_fullscreen:
@@ -1289,14 +1633,21 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                 display_frame = frame
 
             # Render shortcut hints at bottom-center of the active window frame
-            _draw_shortcut_hints(display_frame)
+            _draw_shortcut_hints(display_frame, is_recording=rec_session.recording)
 
             cv2.imshow(window_name, display_frame)
 
             # Handle interactive keyboard controls
             key = cv2.waitKey(1) & 0xFF
             if key in (ord("q"), ord("Q")):
+                if rec_session.recording:
+                    stop_recording(rec_session)
                 break
+            elif key in (ord("r"), ord("R")):
+                if not rec_session.recording:
+                    start_recording(rec_session)
+                else:
+                    stop_recording(rec_session)
             elif key in (ord("f"), ord("F")):
                 is_fullscreen = not is_fullscreen
                 if is_fullscreen:
@@ -1310,6 +1661,8 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                     cv2.resizeWindow(window_name, 640, 480)
 
     finally:
+        if rec_session.recording:
+            stop_recording(rec_session)
         camera.release()
         if hands is not None:
             with contextlib.suppress(Exception):

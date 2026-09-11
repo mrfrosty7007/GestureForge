@@ -1,0 +1,6 @@
+Time,Gesture,Confidence,Frame
+00:00:00.000,Open Palm,98.4,120
+00:00:00.600,Open Palm,98.2,138
+00:00:00.901,Closed Fist,96.5,147
+00:00:01.501,Closed Fist,97.1,165
+00:00:01.802,Thumbs Up,95.8,174

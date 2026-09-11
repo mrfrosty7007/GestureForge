@@ -1,0 +1,37 @@
+[
+  {
+    "timestamp": "00:00:00.000",
+    "gesture": "Open Palm",
+    "confidence": 98.4,
+    "frame": 120,
+    "fps": 29.8
+  },
+  {
+    "timestamp": "00:00:00.600",
+    "gesture": "Open Palm",
+    "confidence": 98.2,
+    "frame": 138,
+    "fps": 29.7
+  },
+  {
+    "timestamp": "00:00:00.901",
+    "gesture": "Closed Fist",
+    "confidence": 96.5,
+    "frame": 147,
+    "fps": 29.6
+  },
+  {
+    "timestamp": "00:00:01.501",
+    "gesture": "Closed Fist",
+    "confidence": 97.1,
+    "frame": 165,
+    "fps": 29.8
+  },
+  {
+    "timestamp": "00:00:01.802",
+    "gesture": "Thumbs Up",
+    "confidence": 95.8,
+    "frame": 174,
+    "fps": 29.5
+  }
+]

@@ -95,6 +95,7 @@ python main.py
 | Key | Action |
 | :---: | :--- |
 | `F` | Toggle Fullscreen |
+| `R` | Start / Stop Evidence Recording (see [Guide](docs/evidence_recording_guide.md)) |
 | `Q` | Quit |
 
 ---
@@ -143,6 +144,46 @@ Native OpenCV HUD
 * **MediaPipe Inference**: Uses MediaPipe Hands (`model_complexity=0`) to extract 21 3D landmarks per detected hand with sub-15ms inference latency.
 * **Gesture Classifier**: Identifies gestures for each hand independently using geometric finger-state analysis and landmark heuristic models.
 * **Native OpenCV HUD**: Overlays real-time performance metrics, dual-hand indicators, and controls via hardware-blended OpenCV rendering.
+
+---
+
+## Model Evaluation
+
+Evaluation benchmarks covering accuracy, precision, recall, and per-class F1-scores across all supported gesture classes.
+
+* **Full Report**: **Coming Soon** (`docs/model_evaluation.md`)
+
+---
+
+## Cross-Session Testing
+
+Evaluates pipeline consistency and recognition stability across separate recording sessions with differing environmental conditions and temporal gaps.
+
+* **Documentation**: See [Cross-Session Generalization Report](docs/generalization_report.md) for benchmark setup and evaluation protocols.
+
+---
+
+## Generalization Results
+
+Comparative analysis between raw landmark coordinates and translation/scale-invariant features under varying lighting, camera angles, distances, and subjects.
+
+* **Documentation**: Tracked in [docs/generalization_report.md](docs/generalization_report.md).
+
+---
+
+## Latency Benchmark
+
+Comprehensive end-to-end timing breakdown across camera acquisition, MediaPipe tracking, feature extraction, classification, and HUD rendering.
+
+* **Documentation**: See [Latency Benchmark Report](docs/latency_benchmark.md) for hardware profiling, methodology, and measurement tables.
+
+---
+
+## Demo Video
+
+Demonstration recording showcasing live dual-hand tracking, real-time gesture classification, dynamic HUD overlays, and low-latency response.
+
+* **Status**: **Coming Soon** (Recording will be published after final validation).
 
 ---
 
