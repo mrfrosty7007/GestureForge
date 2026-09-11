@@ -347,6 +347,19 @@ def load_dataset_from_csv(
     return np.array(features, dtype=np.float32), labels
 
 
+def load_test_dataset(
+    csv_path: Path = RAW_DATASET_PATH,
+    test_size: float = 0.20,
+    random_state: int = 42,
+) -> tuple[np.ndarray, list[str]]:
+    """Loads dataset and returns the standardized test split (X_test, y_test)."""
+    X, y = load_dataset_from_csv(csv_path)
+    _, X_test, _, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y
+    )
+    return X_test, y_test
+
+
 def train_gesture_model(
     raw_path: Path = RAW_DATASET_PATH,
     processed_path: Path = PROCESSED_DATASET_PATH,
