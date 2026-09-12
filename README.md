@@ -269,8 +269,12 @@ GestureForge/
 
 Demonstration recording showcasing live dual-hand tracking, real-time gesture classification, dynamic HUD overlays, evidence recording, and executive report generation:
 
-* 📥 **Watch / Download Video**: [`assets/gestureforge_demo.mp4`](assets/gestureforge_demo.mp4) (1080p Full HD, 2m 35s)
-* 📦 **GitHub Release Asset**: Available under [Releases v1.0.0](https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0)
+<div align="center">
+  <img src="assets/demo_preview.gif" alt="GestureForge Live Demonstration Preview" width="720" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
+</div>
+
+* 🎬 **Direct Full-Length Video Stream / Download**: [Watch `gestureforge_demo.mp4`](https://github.com/mrfrosty7007/GestureForge/raw/main/assets/gestureforge_demo.mp4) (1080p Full HD, 2m 35s)
+* 📦 **GitHub Official Release Asset**: Available under [Releases v1.0.0](https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0)
 
 ### Video Walkthrough Highlights
 
