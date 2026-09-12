@@ -86,6 +86,82 @@ def normalize_landmarks(landmarks: list[Any] | Any) -> np.ndarray:
     return normalized.flatten().astype(np.float32)
 
 
+def extract_raw_landmark_features(landmarks: list[Any] | Any) -> np.ndarray:
+    """Extracts raw unnormalized 63-dimensional coordinate feature vector [x0, y0, z0, ..., x20, y20, z20]."""
+    coords = extract_raw_coordinates(landmarks)
+    return coords.flatten().astype(np.float32)
+
+
+def extract_invariant_geometric_features(landmarks: list[Any] | Any) -> np.ndarray:
+    """Extracts 8 scale- and translation-invariant geometric features from 21 hand landmarks.
+
+    Features engineered:
+    1. Thumb Tip (4) to Wrist (0) distance, normalized by wrist-to-MCP scale.
+    2. Index Tip (8) to Index MCP (5) distance, normalized by wrist-to-MCP scale.
+    3. Middle Tip (12) to Middle MCP (9) distance, normalized by wrist-to-MCP scale.
+    4. Ring Tip (16) to Ring MCP (13) distance, normalized by wrist-to-MCP scale.
+    5. Pinky Tip (20) to Pinky MCP (17) distance, normalized by wrist-to-MCP scale.
+    6. Inter-finger 3D angle between Thumb vector (4->2) and Index vector (8->5).
+    7. Inter-finger 3D angle between Index vector (8->5) and Middle vector (12->9).
+    8. Inter-finger 3D angle between Middle vector (12->9) and Ring vector (16->13).
+
+    Returns:
+        np.ndarray: 1D array of length 8 with invariant float32 features.
+    """
+    coords = extract_raw_coordinates(landmarks)
+
+    # Reference scale: Wrist (0) to Middle MCP (9) distance
+    wrist = coords[0]
+    middle_mcp = coords[9]
+    scale = float(np.linalg.norm(middle_mcp - wrist))
+    if scale < 1e-6:
+        # Fallback scale: Wrist (0) to Index MCP (5)
+        scale = float(np.linalg.norm(coords[5] - wrist))
+        if scale < 1e-6:
+            scale = 1.0
+
+    # 1-5: Normalized distances
+    d_thumb = float(np.linalg.norm(coords[4] - wrist)) / scale
+    d_index = float(np.linalg.norm(coords[8] - coords[5])) / scale
+    d_middle = float(np.linalg.norm(coords[12] - coords[9])) / scale
+    d_ring = float(np.linalg.norm(coords[16] - coords[13])) / scale
+    d_pinky = float(np.linalg.norm(coords[20] - coords[17])) / scale
+
+    # Helper for angle between two 3D vectors (in radians)
+    def _vector_angle(v1: np.ndarray, v2: np.ndarray) -> float:
+        norm1 = np.linalg.norm(v1)
+        norm2 = np.linalg.norm(v2)
+        if norm1 < 1e-6 or norm2 < 1e-6:
+            return 0.0
+        cos_theta = np.dot(v1, v2) / (norm1 * norm2)
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+        return float(np.arccos(cos_theta))
+
+    # 6-8: Inter-finger 3D angles
+    v_thumb = coords[4] - coords[2]
+    v_index = coords[8] - coords[5]
+    v_middle = coords[12] - coords[9]
+    v_ring = coords[16] - coords[13]
+
+    angle_thumb_index = _vector_angle(v_thumb, v_index)
+    angle_index_middle = _vector_angle(v_index, v_middle)
+    angle_middle_ring = _vector_angle(v_middle, v_ring)
+
+    return np.array(
+        [
+            d_thumb,
+            d_index,
+            d_middle,
+            d_ring,
+            d_pinky,
+            angle_thumb_index,
+            angle_index_middle,
+            angle_middle_ring,
+        ],
+        dtype=np.float32,
+    )
+
+
 def preprocess_csv(input_csv_path: str | Path, output_csv_path: str | Path) -> int:
     """Reads a raw dataset CSV, applies translation and scale normalization to all samples,
 

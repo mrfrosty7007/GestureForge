@@ -154,6 +154,10 @@ class GestureClassifier:
                 else:
                     self.model = loaded
                     self.class_names = list(getattr(self.model, "classes_", []))
+
+                # Ensure n_jobs=1 for low-latency single-sample inference (avoids Windows IPC overhead)
+                if self.model is not None and hasattr(self.model, "n_jobs"):
+                    self.model.n_jobs = 1
             except Exception:
                 # Corrupted or incompatible model file; fall back gracefully
                 self.model = None
