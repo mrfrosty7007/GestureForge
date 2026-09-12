@@ -6,6 +6,7 @@
 [![OpenCV](https://img.shields.io/badge/OpenCV-4.10-5C3EE8?logo=opencv&logoColor=white)](https://opencv.org/)
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands%2021%20Keypoints-007ACC?logo=google&logoColor=white)](https://developers.google.com/mediapipe)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-RandomForest-F7931E?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![CI Status](https://github.com/mrfrosty7007/GestureForge/actions/workflows/ci.yml/badge.svg)](https://github.com/mrfrosty7007/GestureForge/actions/workflows/ci.yml)
 [![Performance](https://img.shields.io/badge/Performance-29--30%20FPS%20%7C%2034ms-brightgreen)](docs/latency_benchmark.md)
 [![YouTube Demo](https://img.shields.io/badge/YouTube-Watch%20Demo%20(1080p)-red?logo=youtube&logoColor=white)](https://youtu.be/HjYFgHaOaFU)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
