@@ -1,0 +1,226 @@
+[
+  {
+    "timestamp": "00:00:01.513",
+    "gesture": "Rock",
+    "confidence": 81.0,
+    "frame": 397,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:01.590",
+    "gesture": "Open Palm",
+    "confidence": 82.0,
+    "frame": 398,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:02.146",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 405,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:02.708",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 412,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:04.549",
+    "gesture": "Rock",
+    "confidence": 61.0,
+    "frame": 435,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:07.025",
+    "gesture": "Closed Fist",
+    "confidence": 77.0,
+    "frame": 466,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:07.113",
+    "gesture": "Open Palm",
+    "confidence": 84.0,
+    "frame": 467,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:07.659",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 474,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:08.143",
+    "gesture": "Call Me",
+    "confidence": 83.0,
+    "frame": 480,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:08.217",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 481,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:08.776",
+    "gesture": "Open Palm",
+    "confidence": 82.0,
+    "frame": 488,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:09.332",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 495,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:09.901",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 502,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:10.454",
+    "gesture": "Open Palm",
+    "confidence": 83.0,
+    "frame": 509,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:11.179",
+    "gesture": "Closed Fist",
+    "confidence": 60.0,
+    "frame": 518,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:11.737",
+    "gesture": "Closed Fist",
+    "confidence": 89.0,
+    "frame": 525,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:13.737",
+    "gesture": "Closed Fist",
+    "confidence": 58.0,
+    "frame": 550,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:15.886",
+    "gesture": "Closed Fist",
+    "confidence": 59.0,
+    "frame": 577,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:15.959",
+    "gesture": "Thumbs Up",
+    "confidence": 57.0,
+    "frame": 578,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:17.239",
+    "gesture": "Call Me",
+    "confidence": 55.0,
+    "frame": 594,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:17.321",
+    "gesture": "Open Palm",
+    "confidence": 84.0,
+    "frame": 595,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:17.878",
+    "gesture": "Open Palm",
+    "confidence": 82.0,
+    "frame": 602,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:18.444",
+    "gesture": "Open Palm",
+    "confidence": 79.0,
+    "frame": 609,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:18.923",
+    "gesture": "OK",
+    "confidence": 79.0,
+    "frame": 615,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:18.997",
+    "gesture": "Open Palm",
+    "confidence": 77.0,
+    "frame": 616,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:19.563",
+    "gesture": "Open Palm",
+    "confidence": 77.0,
+    "frame": 623,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:20.042",
+    "gesture": "OK",
+    "confidence": 55.0,
+    "frame": 629,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:20.678",
+    "gesture": "OK",
+    "confidence": 67.0,
+    "frame": 637,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:21.647",
+    "gesture": "OK",
+    "confidence": 68.0,
+    "frame": 649,
+    "fps": 12.5
+  },
+  {
+    "timestamp": "00:00:21.869",
+    "gesture": "Peace",
+    "confidence": 56.0,
+    "frame": 652,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:22.425",
+    "gesture": "Peace",
+    "confidence": 60.0,
+    "frame": 659,
+    "fps": 12.6
+  },
+  {
+    "timestamp": "00:00:22.741",
+    "gesture": "Open Palm",
+    "confidence": 75.0,
+    "frame": 663,
+    "fps": 12.6
+  }
+]

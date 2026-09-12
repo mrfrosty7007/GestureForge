@@ -1,0 +1,26 @@
+{
+  "session duration": "00:00:22.828",
+  "session_duration_seconds": 22.828,
+  "total events": 30,
+  "total_events": 30,
+  "gesture counts": {
+    "Pointing": 3,
+    "Open Palm": 16,
+    "Peace": 4,
+    "Rock": 2,
+    "Closed Fist": 4,
+    "Thumbs Up": 1
+  },
+  "gesture_counts": {
+    "Pointing": 3,
+    "Open Palm": 16,
+    "Peace": 4,
+    "Rock": 2,
+    "Closed Fist": 4,
+    "Thumbs Up": 1
+  },
+  "average confidence": 70.7,
+  "average_confidence": 70.7,
+  "average FPS": 12.5,
+  "average_fps": 12.5
+}

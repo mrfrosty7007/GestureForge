@@ -267,9 +267,20 @@ GestureForge/
 
 ## 🎥 Demo Video
 
-Demonstration recording showcasing live dual-hand tracking, real-time gesture classification, dynamic HUD overlays, and low-latency response:
+Demonstration recording showcasing live dual-hand tracking, real-time gesture classification, dynamic HUD overlays, evidence recording, and executive report generation:
 
-* **Status**: Recording sessions and data logs are available under [`recordings/`](recordings/). Video walkthrough will be uploaded to project deliverables.
+* 📥 **Watch / Download Video**: [`assets/gestureforge_demo.mp4`](assets/gestureforge_demo.mp4) (1080p Full HD, 2m 35s)
+* 📦 **GitHub Release Asset**: Available under [Releases v1.0.0](https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0)
+
+### Video Walkthrough Highlights
+
+| Timestamp | Segment | Operational Showcase |
+| :---: | :--- | :--- |
+| **0:00 – 0:15** | **Repository Overview** | GitHub documentation, quick navigation table, and Option B deliverables checklist |
+| **0:15 – 0:45** | **One-Click Launch** | Native launch via `.\run_app.bat` from terminal with zero web overhead |
+| **0:45 – 1:15** | **Live Tracking & Evidence Capture** | 21 MediaPipe skeletal keypoints, single & dual-hand recognition (👌 OK, ✋ Open Palm, ✌️ Peace), live `REC` session timer & event counter |
+| **1:15 – 2:25** | **Executive Report Preview** | Automated `SESSION_REPORT.md` rendered in VS Code with tables, emojis, and latency compliance checks |
+| **2:25 – 2:35** | **Session Folder Verification** | Formatted chronological recordings directory (`session.csv`, `session.json`, `summary.json`) |
 
 ---
 
