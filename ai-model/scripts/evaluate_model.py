@@ -26,15 +26,13 @@ for path_entry in (str(SCRIPT_DIR), str(AI_MODEL_DIR), str(ROOT_DIR)):
     if path_entry not in sys.path:
         sys.path.insert(0, path_entry)
 
-import joblib
-import matplotlib
+import joblib  # noqa: E402
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")  # Non-interactive headless backend
-import matplotlib.pyplot as plt
-import numpy as np
-import sklearn
-from gesture_classifier import GestureClassifier
-from sklearn.metrics import (
+import matplotlib.pyplot as plt  # noqa: E402
+from gesture_classifier import GestureClassifier  # noqa: E402
+from sklearn.metrics import (  # noqa: E402
     ConfusionMatrixDisplay,
     accuracy_score,
     classification_report,
@@ -43,7 +41,7 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
 )
-from train_model import (
+from train_model import (  # noqa: E402
     MODEL_OUTPUT_PATH,
     RAW_DATASET_PATH,
     TARGET_GESTURES,
@@ -186,9 +184,7 @@ def evaluate_model(
 
     # 5. Export Markdown report
     print(f"\n[5/5] Exporting Markdown evaluation report -> {report_output_path}")
-    now_str = datetime.datetime.now(datetime.timezone.utc).strftime(
-        "%Y-%m-%d %H:%M:%S UTC"
-    )
+    now_str = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     # Build per-class breakdown markdown table
     per_class_rows = []

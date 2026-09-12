@@ -27,14 +27,19 @@ for p in (str(SCRIPT_DIR), str(AI_MODEL_DIR), str(ROOT_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import numpy as np
-from preprocess import (
+import numpy as np  # noqa: E402
+from preprocess import (  # noqa: E402
     extract_invariant_geometric_features,
     extract_raw_landmark_features,
 )
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
-from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier  # noqa: E402
+from sklearn.metrics import (  # noqa: E402
+    accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
+)
+from sklearn.model_selection import train_test_split  # noqa: E402
 
 RAW_DATASET_PATH = AI_MODEL_DIR / "dataset" / "raw" / "gestures_raw.csv"
 DOCS_DIR = ROOT_DIR / "docs"
@@ -47,7 +52,7 @@ def load_dataset_samples(dataset_path: Path) -> tuple[list[np.ndarray], list[str
     landmarks_list: list[np.ndarray] = []
     labels_list: list[str] = []
 
-    with open(dataset_path, "r", encoding="utf-8") as f:
+    with open(dataset_path, encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
             gesture = row.get("gesture", "Unknown")
@@ -125,20 +130,30 @@ def run_benchmark() -> dict[str, Any]:
     # 1. Load dataset
     print(f"Loading raw dataset from {RAW_DATASET_PATH.name}...")
     landmarks, labels = load_dataset_samples(RAW_DATASET_PATH)
-    print(f"Loaded {len(landmarks)} total landmark samples across {len(set(labels))} classes.\n")
+    print(
+        f"Loaded {len(landmarks)} total landmark samples across {len(set(labels))} classes.\n"
+    )
 
     # 2. Extract features
     print("Extracting feature representations...")
-    X_raw = np.array([extract_raw_landmark_features(lm) for lm in landmarks], dtype=np.float32)
-    X_inv = np.array([extract_invariant_geometric_features(lm) for lm in landmarks], dtype=np.float32)
+    X_raw = np.array(
+        [extract_raw_landmark_features(lm) for lm in landmarks], dtype=np.float32
+    )
+    X_inv = np.array(
+        [extract_invariant_geometric_features(lm) for lm in landmarks], dtype=np.float32
+    )
     y = np.array(labels)
 
     print(f"  - Raw Coordinate Features: shape {X_raw.shape} (63 dims per sample)")
-    print(f"  - Invariant Geometric Features: shape {X_inv.shape} (8 dims per sample)\n")
+    print(
+        f"  - Invariant Geometric Features: shape {X_inv.shape} (8 dims per sample)\n"
+    )
 
     # 3. Create Same-Session train/test split (75% train, 25% test)
     indices = np.arange(len(landmarks))
-    train_idx, test_idx = train_test_split(indices, test_size=0.25, random_state=42, stratify=y)
+    train_idx, test_idx = train_test_split(
+        indices, test_size=0.25, random_state=42, stratify=y
+    )
 
     y_train = y[train_idx]
     y_test_same = y[test_idx]
@@ -152,14 +167,19 @@ def run_benchmark() -> dict[str, Any]:
 
     # 4. Generate Cross-Session test set from held-out test landmarks
     test_landmarks_same = [landmarks[i] for i in test_idx]
-    cross_session_test_landmarks = create_cross_session_variants(test_landmarks_same, seed=123)
+    cross_session_test_landmarks = create_cross_session_variants(
+        test_landmarks_same, seed=123
+    )
 
     X_raw_test_cross = np.array(
         [extract_raw_landmark_features(lm) for lm in cross_session_test_landmarks],
         dtype=np.float32,
     )
     X_inv_test_cross = np.array(
-        [extract_invariant_geometric_features(lm) for lm in cross_session_test_landmarks],
+        [
+            extract_invariant_geometric_features(lm)
+            for lm in cross_session_test_landmarks
+        ],
         dtype=np.float32,
     )
     y_test_cross = y_test_same.copy()
@@ -188,9 +208,26 @@ def run_benchmark() -> dict[str, Any]:
     def _calc_metrics(y_true, y_pred):
         return {
             "accuracy": round(float(accuracy_score(y_true, y_pred) * 100), 2),
-            "precision": round(float(precision_score(y_true, y_pred, average="weighted", zero_division=0) * 100), 2),
-            "recall": round(float(recall_score(y_true, y_pred, average="weighted", zero_division=0) * 100), 2),
-            "f1": round(float(f1_score(y_true, y_pred, average="weighted", zero_division=0) * 100), 2),
+            "precision": round(
+                float(
+                    precision_score(y_true, y_pred, average="weighted", zero_division=0)
+                    * 100
+                ),
+                2,
+            ),
+            "recall": round(
+                float(
+                    recall_score(y_true, y_pred, average="weighted", zero_division=0)
+                    * 100
+                ),
+                2,
+            ),
+            "f1": round(
+                float(
+                    f1_score(y_true, y_pred, average="weighted", zero_division=0) * 100
+                ),
+                2,
+            ),
         }
 
     m_raw_same = _calc_metrics(y_test_same, pred_raw_same)
@@ -199,9 +236,13 @@ def run_benchmark() -> dict[str, Any]:
     m_inv_cross = _calc_metrics(y_test_cross, pred_inv_cross)
 
     print(f"Cell [1,1] Raw Coordinates  - Same Session:  {m_raw_same['accuracy']}%")
-    print(f"Cell [1,2] Raw Coordinates  - Cross Session: {m_raw_cross['accuracy']}% (Drop: -{round(m_raw_same['accuracy'] - m_raw_cross['accuracy'], 1)}%)")
+    print(
+        f"Cell [1,2] Raw Coordinates  - Cross Session: {m_raw_cross['accuracy']}% (Drop: -{round(m_raw_same['accuracy'] - m_raw_cross['accuracy'], 1)}%)"
+    )
     print(f"Cell [2,1] Invariant Features- Same Session:  {m_inv_same['accuracy']}%")
-    print(f"Cell [2,2] Invariant Features- Cross Session: {m_inv_cross['accuracy']}% (Drop: -{round(m_inv_same['accuracy'] - m_inv_cross['accuracy'], 1)}%)")
+    print(
+        f"Cell [2,2] Invariant Features- Cross Session: {m_inv_cross['accuracy']}% (Drop: -{round(m_inv_same['accuracy'] - m_inv_cross['accuracy'], 1)}%)"
+    )
     print("-" * 70 + "\n")
 
     # 7. Latency Benchmarking
@@ -228,10 +269,14 @@ def run_benchmark() -> dict[str, Any]:
     inv_infer_time_ms = round(((time.perf_counter() - t0) / N_ITERS) * 1000.0, 2)
 
     print(f"  - Raw Classifier Inference Latency:      {raw_infer_time_ms} ms / sample")
-    print(f"  - Invariant Classifier Inference Latency:  {inv_infer_time_ms} ms / sample\n")
+    print(
+        f"  - Invariant Classifier Inference Latency:  {inv_infer_time_ms} ms / sample\n"
+    )
 
     # 8. Update docs/generalization_report.md
-    update_generalization_report(m_raw_same, m_raw_cross, m_inv_same, m_inv_cross, len(landmarks))
+    update_generalization_report(
+        m_raw_same, m_raw_cross, m_inv_same, m_inv_cross, len(landmarks)
+    )
 
     # 9. Update docs/latency_benchmark.md
     update_latency_report(inv_infer_time_ms)
@@ -366,7 +411,7 @@ This document records the end-to-end latency and architectural throughput of the
 
 GestureForge is engineered for high-responsiveness human-computer interaction, targeting low latency and smooth frame rates across the entire perception stack. This benchmark provides a transparent, granular accounting of processing delays across every stage of the recognition lifecycle—from hardware frame acquisition to final OpenCV UI overlay rendering.
 
-The objective is to identify potential computational bottlenecks, establish an empirical baseline for frame rate stability, and verify that the system maintains sub-35 ms real-time performance ($\ge 28$ FPS) under standard operational conditions.
+The objective is to identify potential computational bottlenecks, establish an empirical baseline for frame rate stability, and verify that the system maintains sub-35 ms real-time performance ($\\ge 28$ FPS) under standard operational conditions.
 
 ---
 
@@ -406,7 +451,7 @@ As mandated by the project specification, classifier inference latency and compl
 | :--- | :---: | :---: | :---: |
 | **Classifier Inference Latency** | **{t_classifier} ms / sample** | $< 2.0$ ms | \u2705 PASS (Sub-millisecond) |
 | **Complete Pipeline Latency** | **{t_total} ms / frame** | $< 35.0$ ms | \u2705 PASS |
-| **Complete Pipeline Throughput** | **{pipeline_fps} FPS** | $\ge 28.0$ FPS | \u2705 PASS (Sustained Real-Time) |
+| **Complete Pipeline Throughput** | **{pipeline_fps} FPS** | $\\ge 28.0$ FPS | \u2705 PASS (Sustained Real-Time) |
 
 ---
 

@@ -1160,7 +1160,11 @@ def log_event(
         "timestamp": timestamp_str,
         "gesture": gesture,
         "confidence": round(float(confidence), 1),
-        "frame": frame_number if frame_number is not None else (len(target.session_events) + 1),
+        "frame": (
+            frame_number
+            if frame_number is not None
+            else (len(target.session_events) + 1)
+        ),
     }
     if fps is not None and fps > 0:
         event_record["fps"] = round(float(fps), 1)
@@ -1203,12 +1207,14 @@ def save_session(session: RecordingSession | None = None) -> Path | None:
         writer = csv.writer(f)
         writer.writerow(["Time", "Gesture", "Confidence", "Frame"])
         for ev in target.session_events:
-            writer.writerow([
-                ev["timestamp"],
-                ev["gesture"],
-                ev["confidence"],
-                ev.get("frame", ""),
-            ])
+            writer.writerow(
+                [
+                    ev["timestamp"],
+                    ev["gesture"],
+                    ev["confidence"],
+                    ev.get("frame", ""),
+                ]
+            )
 
     # 3. summary.json: session metrics and distributions
     duration_sec = 0.0
@@ -1257,7 +1263,11 @@ def _generate_session_markdown_report(
     """Generates a comprehensive, human-readable SESSION_REPORT.md file inside the session folder."""
     session_id = folder.name
     rec_match = re.match(r"^recording_(\d+)", session_id, re.IGNORECASE)
-    rec_label = f"Recording #{rec_match.group(1)} (Chronological)" if rec_match else "Timestamped recording directory"
+    rec_label = (
+        f"Recording #{rec_match.group(1)} (Chronological)"
+        if rec_match
+        else "Timestamped recording directory"
+    )
     duration_str = summary_data.get("session duration", "00:00:00.0")
     total_events = summary_data.get("total_events", 0)
     avg_conf = summary_data.get("average_confidence", 0.0)
@@ -1292,11 +1302,15 @@ def _generate_session_markdown_report(
     ]
 
     if gesture_counts:
-        for gname, count in sorted(gesture_counts.items(), key=lambda x: x[1], reverse=True):
+        for gname, count in sorted(
+            gesture_counts.items(), key=lambda x: x[1], reverse=True
+        ):
             pct = round((count / total_events) * 100, 1) if total_events > 0 else 0.0
             emoji_sym, _ = GESTURE_EMOJI_MAP.get(gname, ("✋", gname))
             quality = "🟢 High Frequency" if pct >= 20 else "🔵 Standard"
-            report_lines.append(f"| {emoji_sym} | **{gname}** | {count} | {pct}% | {quality} |")
+            report_lines.append(
+                f"| {emoji_sym} | **{gname}** | {count} | {pct}% | {quality} |"
+            )
     else:
         report_lines.append("| — | *No gesture events detected* | 0 | 0.0% | N/A |")
 
@@ -1304,46 +1318,47 @@ def _generate_session_markdown_report(
     fps_status = "✅ PASS" if avg_fps >= 25 else "⚠️ CHECK"
     latency_status = "✅ PASS (Real-Time)" if avg_fps >= 25 else "⚠️ INVESTIGATE"
 
-    report_lines.extend([
-        "",
-        "---",
-        "",
-        "## ⏱️ Latency & Real-Time Performance Benchmarks",
-        "",
-        "| Pipeline Stage | Metric | Target | Status |",
-        "| :--- | :---: | :---: | :---: |",
-        f"| **Camera Frame Acquisition** | ~30 FPS | $\ge 28$ FPS | {fps_status} |",
-        "| **MediaPipe Landmark Inference** | ~22–28 ms | $< 30$ ms | ✅ PASS |",
-        "| **Classifier Decision Latency** | $< 0.5$ ms | $< 2$ ms | ✅ PASS |",
-        f"| **End-to-End Latency** | ~{est_latency} ms | $< 35$ ms | {latency_status} |",
-        "",
-        "---",
-        "",
-        "## 🧪 Operational Test Environment Metadata",
-        "",
-        "This metadata documents the experimental test conditions for cross-session validation:",
-        "",
-        "| Condition Field | Value / Parameter | Notes |",
-        "| :--- | :--- | :--- |",
-        "| **Lighting Condition** | Standard Ambient Indoor | Normal office illumination |",
-        "| **Camera Distance** | ~0.5m – 0.8m | Standard laptop/desktop operational distance |",
-        "| **Camera Angle** | Frontal 0° | Direct line of sight |",
-        "| **Session Classification** | Empirical Test Run | Suitable for cross-session comparison |",
-        "",
-        "---",
-        "",
-        "## 📁 Attached Raw Telemetry Artifacts",
-        "",
-        "* **`session.csv`**: Complete tabular time-series log with per-event timestamps, gesture labels, confidence scores, and frame indices (Excel-compatible).",
-        "* **`session.json`**: Structured JSON dataset of all raw event transitions for programmatic analysis.",
-        "* **`summary.json`**: Aggregated performance summary dictionary.",
-        "",
-    ])
+    report_lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## ⏱️ Latency & Real-Time Performance Benchmarks",
+            "",
+            "| Pipeline Stage | Metric | Target | Status |",
+            "| :--- | :---: | :---: | :---: |",
+            rf"| **Camera Frame Acquisition** | ~30 FPS | $\ge 28$ FPS | {fps_status} |",
+            "| **MediaPipe Landmark Inference** | ~22–28 ms | $< 30$ ms | ✅ PASS |",
+            "| **Classifier Decision Latency** | $< 0.5$ ms | $< 2$ ms | ✅ PASS |",
+            f"| **End-to-End Latency** | ~{est_latency} ms | $< 35$ ms | {latency_status} |",
+            "",
+            "---",
+            "",
+            "## 🧪 Operational Test Environment Metadata",
+            "",
+            "This metadata documents the experimental test conditions for cross-session validation:",
+            "",
+            "| Condition Field | Value / Parameter | Notes |",
+            "| :--- | :--- | :--- |",
+            "| **Lighting Condition** | Standard Ambient Indoor | Normal office illumination |",
+            "| **Camera Distance** | ~0.5m – 0.8m | Standard laptop/desktop operational distance |",
+            "| **Camera Angle** | Frontal 0° | Direct line of sight |",
+            "| **Session Classification** | Empirical Test Run | Suitable for cross-session comparison |",
+            "",
+            "---",
+            "",
+            "## 📁 Attached Raw Telemetry Artifacts",
+            "",
+            "* **`session.csv`**: Complete tabular time-series log with per-event timestamps, gesture labels, confidence scores, and frame indices (Excel-compatible).",
+            "* **`session.json`**: Structured JSON dataset of all raw event transitions for programmatic analysis.",
+            "* **`summary.json`**: Aggregated performance summary dictionary.",
+            "",
+        ]
+    )
 
     report_path = folder / "SESSION_REPORT.md"
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("\n".join(report_lines) + "\n")
-
 
 
 def _get_numeric_confidence(
@@ -1700,8 +1715,13 @@ def run_native_camera_app(camera_index: int = 0) -> None:
                     )
 
                     # Track active gesture and numeric confidence for evidence recording
-                    num_conf = _get_numeric_confidence(classifier, hand_landmarks, confidence)
-                    if gesture not in ("None", "Unknown") and num_conf > active_confidence:
+                    num_conf = _get_numeric_confidence(
+                        classifier, hand_landmarks, confidence
+                    )
+                    if (
+                        gesture not in ("None", "Unknown")
+                        and num_conf > active_confidence
+                    ):
                         active_gesture = tag_name
                         active_confidence = num_conf
 

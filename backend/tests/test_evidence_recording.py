@@ -131,9 +131,7 @@ def test_session_file_formats(tmp_path: Path):
     session = RecordingSession(output_root=tmp_path)
     start_recording(session, output_root=tmp_path)
 
-    log_event(
-        session, gesture="Open Palm", confidence=98.7, frame_number=142, fps=29.5
-    )
+    log_event(session, gesture="Open Palm", confidence=98.7, frame_number=142, fps=29.5)
     saved_path = save_session(session)
     assert saved_path is not None
     folder = session.session_folder
@@ -213,4 +211,3 @@ def test_sequential_recording_indexing(tmp_path: Path):
     assert s3.session_folder is not None
     assert s3.session_folder.name.startswith("recording_3_")
     stop_recording(s3)
-
