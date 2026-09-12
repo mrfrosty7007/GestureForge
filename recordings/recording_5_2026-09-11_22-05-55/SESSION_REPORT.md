@@ -1,4 +1,4 @@
-# 📊 GestureForge Evidence Recording Session: `2026-09-11_22-05-33`
+# 📊 GestureForge Evidence Recording Session: `recording_5_2026-09-11_22-05-55`
 
 This report provides an executive summary and granular telemetry analysis of a live gesture recognition recording session.
 
@@ -8,8 +8,8 @@ This report provides an executive summary and granular telemetry analysis of a l
 
 | Metric | Result | Operational Assessment |
 | :--- | :---: | :--- |
-| **Session Identifier** | `2026-09-11_22-05-33` | Timestamped recording directory |
-| **Total Duration** | `00:00:00.215` | Active capture window |
+| **Session Identifier** | `recording_5_2026-09-11_22-05-55` | Recording #5 (Chronological) |
+| **Total Duration** | `00:00:02.421` | Active capture window |
 | **Total Recognized Events** | **0** | Distinct stabilized gesture transitions |
 | **Average Model Confidence** | **0.0%** | 🟡 Moderate (Meets threshold) |
 | **Average Pipeline FPS** | **0.0 FPS** | ⚠️ Bottleneck Detected (<25 FPS) |

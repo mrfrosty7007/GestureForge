@@ -15,6 +15,7 @@ import csv
 import datetime
 import json
 import logging
+import re
 import sys
 import threading
 import time
@@ -1021,15 +1022,38 @@ def _format_relative_time(seconds: float) -> str:
     return f"{hours:02d}:{mins:02d}:{secs:02d}.{millis:03d}"
 
 
+def _get_next_recording_index(output_root: Path) -> int:
+    """Calculates the next 1-based sequential recording session number.
+
+    Inspects all subdirectories in output_root for `recording_<N>...` patterns
+    or directory counts, returning max(index) + 1.
+    """
+    if not output_root.exists():
+        return 1
+
+    max_idx = 0
+    total_dirs = 0
+    for entry in output_root.iterdir():
+        if entry.is_dir():
+            total_dirs += 1
+            m = re.match(r"^recording_(\d+)", entry.name, re.IGNORECASE)
+            if m:
+                max_idx = max(max_idx, int(m.group(1)))
+
+    if max_idx > 0:
+        return max_idx + 1
+    return total_dirs + 1
+
+
 def start_recording(
     session: RecordingSession | None = None,
     output_root: str | Path = "recordings",
 ) -> RecordingSession:
-    """Starts a new recording session and initializes its timestamped output directory.
+    """Starts a new recording session and initializes its sequential output directory.
 
     Args:
         session: Optional existing RecordingSession instance.
-        output_root: Root directory where timestamped session folders are created.
+        output_root: Root directory where sequential session folders are created.
 
     Returns:
         RecordingSession: Active recording session instance.
@@ -1042,7 +1066,9 @@ def start_recording(
         session.output_root = Path(output_root)
 
     timestamp_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    session_folder = session.output_root / timestamp_str
+    rec_num = _get_next_recording_index(session.output_root)
+    folder_name = f"recording_{rec_num}_{timestamp_str}"
+    session_folder = session.output_root / folder_name
     session_folder.mkdir(parents=True, exist_ok=True)
 
     session.session_folder = session_folder
@@ -1052,7 +1078,7 @@ def start_recording(
     session.last_logged_gesture = None
 
     _active_session = session
-    print("Recording started")
+    print(f"Recording #{rec_num} started -> {folder_name}")
     return session
 
 
@@ -1230,6 +1256,8 @@ def _generate_session_markdown_report(
 ) -> None:
     """Generates a comprehensive, human-readable SESSION_REPORT.md file inside the session folder."""
     session_id = folder.name
+    rec_match = re.match(r"^recording_(\d+)", session_id, re.IGNORECASE)
+    rec_label = f"Recording #{rec_match.group(1)} (Chronological)" if rec_match else "Timestamped recording directory"
     duration_str = summary_data.get("session duration", "00:00:00.0")
     total_events = summary_data.get("total_events", 0)
     avg_conf = summary_data.get("average_confidence", 0.0)
@@ -1247,7 +1275,7 @@ def _generate_session_markdown_report(
         "",
         "| Metric | Result | Operational Assessment |",
         "| :--- | :---: | :--- |",
-        f"| **Session Identifier** | `{session_id}` | Timestamped recording directory |",
+        f"| **Session Identifier** | `{session_id}` | {rec_label} |",
         f"| **Total Duration** | `{duration_str}` | Active capture window |",
         f"| **Total Recognized Events** | **{total_events}** | Distinct stabilized gesture transitions |",
         f"| **Average Model Confidence** | **{avg_conf}%** | {'🟢 High (Production Ready)' if avg_conf >= 80 else '🟡 Moderate (Meets threshold)'} |",

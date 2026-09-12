@@ -1,4 +1,4 @@
-# 📊 GestureForge Evidence Recording Session: `2026-09-11_22-03-50`
+# 📊 GestureForge Evidence Recording Session: `recording_4_2026-09-11_22-05-33`
 
 This report provides an executive summary and granular telemetry analysis of a live gesture recognition recording session.
 
@@ -8,11 +8,11 @@ This report provides an executive summary and granular telemetry analysis of a l
 
 | Metric | Result | Operational Assessment |
 | :--- | :---: | :--- |
-| **Session Identifier** | `2026-09-11_22-03-50` | Timestamped recording directory |
-| **Total Duration** | `00:00:02.306` | Active capture window |
-| **Total Recognized Events** | **5** | Distinct stabilized gesture transitions |
-| **Average Model Confidence** | **97.2%** | 🟢 High (Production Ready) |
-| **Average Pipeline FPS** | **29.7 FPS** | ⚡ Sub-35ms Real-Time (Smooth) |
+| **Session Identifier** | `recording_4_2026-09-11_22-05-33` | Recording #4 (Chronological) |
+| **Total Duration** | `00:00:00.215` | Active capture window |
+| **Total Recognized Events** | **0** | Distinct stabilized gesture transitions |
+| **Average Model Confidence** | **0.0%** | 🟡 Moderate (Meets threshold) |
+| **Average Pipeline FPS** | **0.0 FPS** | ⚠️ Bottleneck Detected (<25 FPS) |
 
 ---
 
@@ -22,9 +22,7 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Emoji | Gesture Class | Event Count | % of Session | Detection Quality |
 | :---: | :--- | :---: | :---: | :--- |
-| ✋ | **Open Palm** | 2 | 40.0% | 🟢 High Frequency |
-| ✊ | **Closed Fist** | 2 | 40.0% | 🟢 High Frequency |
-| 👍 | **Thumbs Up** | 1 | 20.0% | 🟢 High Frequency |
+| — | *No gesture events detected* | 0 | 0.0% | N/A |
 
 ---
 
@@ -32,10 +30,10 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Pipeline Stage | Metric | Target | Status |
 | :--- | :---: | :---: | :---: |
-| **Camera Frame Acquisition** | ~29.7 FPS | $\ge 28$ FPS | ✅ PASS |
+| **Camera Frame Acquisition** | ~0.0 FPS | $\ge 28$ FPS | ⚠️ CHECK |
 | **MediaPipe Landmark Inference** | ~22–28 ms | $< 30$ ms | ✅ PASS |
 | **Classifier Decision Latency** | $< 0.5$ ms | $< 2$ ms | ✅ PASS |
-| **End-to-End Latency** | ~33.7 ms | $< 35$ ms | ✅ PASS (Real-Time) |
+| **End-to-End Latency** | ~33.3 ms | $< 35$ ms | ⚠️ INVESTIGATE |
 
 ---
 

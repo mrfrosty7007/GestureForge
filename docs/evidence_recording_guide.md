@@ -173,17 +173,18 @@ Time,Gesture,Confidence,Frame
 
 ## Folder Structure
 
-All sessions are housed under the root `recordings/` directory of the repository. Each session is assigned an ISO-compliant, timestamped subdirectory:
+All sessions are housed under the root `recordings/` directory of the repository. Each session is assigned a sequential, chronological recording identifier with its timestamp (`recording_<number>_YYYY-MM-DD_HH-MM-SS`):
 
 ```
 GestureForge/
 ├── recordings/
-│   ├── 2026-09-11_21-47-37/
-│   ├── 2026-09-11_22-03-50/
+│   ├── recording_1_2026-09-11_21-47-37/
+│   ├── recording_2_2026-09-11_22-03-50/
+│   │   ├── SESSION_REPORT.md    # Executive overview and telemetry benchmarks
 │   │   ├── session.csv          # Tabular time-series of recognized transitions
 │   │   ├── session.json         # Raw event payloads with instantaneous telemetry
 │   │   └── summary.json         # Aggregated session metrics & distributions
-│   └── 2026-09-11_22-05-55/
+│   └── recording_7_2026-09-12_11-57-05/
 ├── docs/
 │   └── assets/
 │       └── evidence_recording/  # Reference visual assets & UI captures
@@ -199,7 +200,7 @@ The image below illustrates the generated session directory structure in the Win
 
 ## Example Session Analytics
 
-The following table presents real metrics collected from the latest validation recording session (`2026-09-11_22-03-50`):
+The following table presents real metrics collected from validation recording session #2 (`recording_2_2026-09-11_22-03-50`):
 
 | Evaluation Metric | Observed Real Value | Operational Status |
 | :--- | :---: | :--- |

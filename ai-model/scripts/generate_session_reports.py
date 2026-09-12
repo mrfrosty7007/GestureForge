@@ -7,6 +7,7 @@ and generates a human-readable `SESSION_REPORT.md` in any recording folder where
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -42,31 +43,33 @@ def generate_report_for_folder(folder: Path) -> bool:
         return False
 
     session_id = folder.name
+    rec_match = re.match(r"^recording_(\d+)", session_id, re.IGNORECASE)
+    rec_label = f"Recording #{rec_match.group(1)} (Chronological)" if rec_match else "Timestamped recording directory"
     duration_str = summary_data.get("session duration", "00:00:00.0")
     total_events = summary_data.get("total_events", summary_data.get("total events", 0))
     avg_conf = summary_data.get("average_confidence", summary_data.get("average confidence", 0.0))
     avg_fps = summary_data.get("average_fps", summary_data.get("average FPS", 0.0))
     gesture_counts: dict[str, int] = summary_data.get("gesture_counts", summary_data.get("gesture counts", {}))
 
-    conf_badge = "\U0001f7e2 High (Production Ready)" if avg_conf >= 80 else "\U0001f7e1 Moderate (Meets threshold)"
-    fps_badge = "\u26a1 Sub-35ms Real-Time (Smooth)" if avg_fps >= 25 else "\u26a0\ufe0f Bottleneck Detected (<25 FPS)"
+    conf_badge = "🟢 High (Production Ready)" if avg_conf >= 80 else "🟡 Moderate (Meets threshold)"
+    fps_badge = "⚡ Sub-35ms Real-Time (Smooth)" if avg_fps >= 25 else "⚠️ Bottleneck Detected (<25 FPS)"
 
     est_latency = round(1000.0 / avg_fps, 1) if avg_fps > 0 else 33.3
-    fps_status = "\u2705 PASS" if avg_fps >= 25 else "\u26a0\ufe0f CHECK"
-    latency_status = "\u2705 PASS (Real-Time)" if avg_fps >= 25 else "\u26a0\ufe0f INVESTIGATE"
+    fps_status = "✅ PASS" if avg_fps >= 25 else "⚠️ CHECK"
+    latency_status = "✅ PASS (Real-Time)" if avg_fps >= 25 else "⚠️ INVESTIGATE"
 
     report_lines = [
-        f"# \U0001f4ca GestureForge Evidence Recording Session: `{session_id}`",
+        f"# 📊 GestureForge Evidence Recording Session: `{session_id}`",
         "",
         "This report provides an executive summary and granular telemetry analysis of a live gesture recognition recording session.",
         "",
         "---",
         "",
-        "## \U0001f4cc Executive Overview",
+        "## 📌 Executive Overview",
         "",
         "| Metric | Result | Operational Assessment |",
         "| :--- | :---: | :--- |",
-        f"| **Session Identifier** | `{session_id}` | Timestamped recording directory |",
+        f"| **Session Identifier** | `{session_id}` | {rec_label} |",
         f"| **Total Duration** | `{duration_str}` | Active capture window |",
         f"| **Total Recognized Events** | **{total_events}** | Distinct stabilized gesture transitions |",
         f"| **Average Model Confidence** | **{avg_conf}%** | {conf_badge} |",

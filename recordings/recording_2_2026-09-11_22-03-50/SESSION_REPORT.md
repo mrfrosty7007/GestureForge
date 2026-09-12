@@ -1,4 +1,4 @@
-# 📊 GestureForge Evidence Recording Session: `2026-09-12_11-57-05`
+# 📊 GestureForge Evidence Recording Session: `recording_2_2026-09-11_22-03-50`
 
 This report provides an executive summary and granular telemetry analysis of a live gesture recognition recording session.
 
@@ -8,11 +8,11 @@ This report provides an executive summary and granular telemetry analysis of a l
 
 | Metric | Result | Operational Assessment |
 | :--- | :---: | :--- |
-| **Session Identifier** | `2026-09-12_11-57-05` | Timestamped recording directory |
-| **Total Duration** | `00:00:18.689` | Active capture window |
-| **Total Recognized Events** | **21** | Distinct stabilized gesture transitions |
-| **Average Model Confidence** | **66.9%** | 🟡 Moderate (Meets threshold) |
-| **Average Pipeline FPS** | **12.5 FPS** | ⚠️ Bottleneck Detected (<25 FPS) |
+| **Session Identifier** | `recording_2_2026-09-11_22-03-50` | Recording #2 (Chronological) |
+| **Total Duration** | `00:00:02.306` | Active capture window |
+| **Total Recognized Events** | **5** | Distinct stabilized gesture transitions |
+| **Average Model Confidence** | **97.2%** | 🟢 High (Production Ready) |
+| **Average Pipeline FPS** | **29.7 FPS** | ⚡ Sub-35ms Real-Time (Smooth) |
 
 ---
 
@@ -22,11 +22,9 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Emoji | Gesture Class | Event Count | % of Session | Detection Quality |
 | :---: | :--- | :---: | :---: | :--- |
-| ✋ | **Open Palm** | 10 | 47.6% | 🟢 High Frequency |
-| ✊ | **Closed Fist** | 6 | 28.6% | 🟢 High Frequency |
-| ☝️ | **Pointing** | 3 | 14.3% | 🔵 Standard |
-| ✌️ | **Peace** | 1 | 4.8% | 🔵 Standard |
-| 🤙 | **Call Me** | 1 | 4.8% | 🔵 Standard |
+| ✋ | **Open Palm** | 2 | 40.0% | 🟢 High Frequency |
+| ✊ | **Closed Fist** | 2 | 40.0% | 🟢 High Frequency |
+| 👍 | **Thumbs Up** | 1 | 20.0% | 🟢 High Frequency |
 
 ---
 
@@ -34,10 +32,10 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Pipeline Stage | Metric | Target | Status |
 | :--- | :---: | :---: | :---: |
-| **Camera Frame Acquisition** | ~30 FPS | $\ge 28$ FPS | ⚠️ CHECK |
+| **Camera Frame Acquisition** | ~29.7 FPS | $\ge 28$ FPS | ✅ PASS |
 | **MediaPipe Landmark Inference** | ~22–28 ms | $< 30$ ms | ✅ PASS |
 | **Classifier Decision Latency** | $< 0.5$ ms | $< 2$ ms | ✅ PASS |
-| **End-to-End Latency** | ~80.0 ms | $< 35$ ms | ⚠️ INVESTIGATE |
+| **End-to-End Latency** | ~33.7 ms | $< 35$ ms | ✅ PASS (Real-Time) |
 
 ---
 

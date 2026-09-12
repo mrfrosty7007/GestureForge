@@ -189,3 +189,28 @@ def test_hud_rendering_safety(tmp_path: Path):
     _draw_shortcut_hints(frame, is_recording=False)
 
     stop_recording(session)
+
+
+def test_sequential_recording_indexing(tmp_path: Path):
+    """Verify recording sessions are sequentially ordered (recording_1, recording_2, recording_3)."""
+    # First recording
+    s1 = RecordingSession(output_root=tmp_path)
+    start_recording(s1, output_root=tmp_path)
+    assert s1.session_folder is not None
+    assert s1.session_folder.name.startswith("recording_1_")
+    stop_recording(s1)
+
+    # Second recording
+    s2 = RecordingSession(output_root=tmp_path)
+    start_recording(s2, output_root=tmp_path)
+    assert s2.session_folder is not None
+    assert s2.session_folder.name.startswith("recording_2_")
+    stop_recording(s2)
+
+    # Third recording
+    s3 = RecordingSession(output_root=tmp_path)
+    start_recording(s3, output_root=tmp_path)
+    assert s3.session_folder is not None
+    assert s3.session_folder.name.startswith("recording_3_")
+    stop_recording(s3)
+

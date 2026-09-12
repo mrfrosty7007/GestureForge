@@ -152,10 +152,10 @@ Independent measurement of classifier inference latency versus complete end-to-e
 
 ### 3. User-Friendly Evidence Recording Sessions
 
-Whenever you press **`R`**, GestureForge captures live telemetry and automatically generates a human-readable **`SESSION_REPORT.md`** directly inside the timestamped folder ([`recordings/`](recordings/)):
+Whenever you press **`R`**, GestureForge captures live telemetry and automatically generates a human-readable **`SESSION_REPORT.md`** directly inside the sequentially numbered folder ([`recordings/`](recordings/)):
 
 ```text
-recordings/2026-09-12_11-57-05/
+recordings/recording_7_2026-09-12_11-57-05/
 ├── SESSION_REPORT.md    # 📄 Human-readable summary with tables, emojis, and metrics
 ├── session.csv          # 📊 Tabular time-series event log (Excel-compatible)
 ├── session.json         # 🤖 Raw structured event telemetry for programmatic evaluation

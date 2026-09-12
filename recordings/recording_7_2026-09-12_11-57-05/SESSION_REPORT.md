@@ -1,4 +1,4 @@
-# 📊 GestureForge Evidence Recording Session: `2026-09-11_22-20-49`
+# 📊 GestureForge Evidence Recording Session: `recording_7_2026-09-12_11-57-05`
 
 This report provides an executive summary and granular telemetry analysis of a live gesture recognition recording session.
 
@@ -8,11 +8,11 @@ This report provides an executive summary and granular telemetry analysis of a l
 
 | Metric | Result | Operational Assessment |
 | :--- | :---: | :--- |
-| **Session Identifier** | `2026-09-11_22-20-49` | Timestamped recording directory |
-| **Total Duration** | `00:00:31.159` | Active capture window |
-| **Total Recognized Events** | **36** | Distinct stabilized gesture transitions |
-| **Average Model Confidence** | **74.6%** | 🟡 Moderate (Meets threshold) |
-| **Average Pipeline FPS** | **11.6 FPS** | ⚠️ Bottleneck Detected (<25 FPS) |
+| **Session Identifier** | `recording_7_2026-09-12_11-57-05` | Recording #7 (Chronological) |
+| **Total Duration** | `00:00:18.689` | Active capture window |
+| **Total Recognized Events** | **21** | Distinct stabilized gesture transitions |
+| **Average Model Confidence** | **66.9%** | 🟡 Moderate (Meets threshold) |
+| **Average Pipeline FPS** | **12.5 FPS** | ⚠️ Bottleneck Detected (<25 FPS) |
 
 ---
 
@@ -22,12 +22,11 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Emoji | Gesture Class | Event Count | % of Session | Detection Quality |
 | :---: | :--- | :---: | :---: | :--- |
-| ✋ | **Open Palm** | 20 | 55.6% | 🟢 High Frequency |
-| 👍 | **Thumbs Up** | 6 | 16.7% | 🔵 Standard |
-| 🤙 | **Call Me** | 4 | 11.1% | 🔵 Standard |
-| ✌️ | **Peace** | 3 | 8.3% | 🔵 Standard |
-| 🤘 | **Rock** | 2 | 5.6% | 🔵 Standard |
-| ✊ | **Closed Fist** | 1 | 2.8% | 🔵 Standard |
+| ✋ | **Open Palm** | 10 | 47.6% | 🟢 High Frequency |
+| ✊ | **Closed Fist** | 6 | 28.6% | 🟢 High Frequency |
+| ☝️ | **Pointing** | 3 | 14.3% | 🔵 Standard |
+| ✌️ | **Peace** | 1 | 4.8% | 🔵 Standard |
+| 🤙 | **Call Me** | 1 | 4.8% | 🔵 Standard |
 
 ---
 
@@ -35,10 +34,10 @@ Distribution of discrete gesture events detected and classified during this reco
 
 | Pipeline Stage | Metric | Target | Status |
 | :--- | :---: | :---: | :---: |
-| **Camera Frame Acquisition** | ~11.6 FPS | $\ge 28$ FPS | ⚠️ CHECK |
+| **Camera Frame Acquisition** | ~12.5 FPS | $\ge 28$ FPS | ⚠️ CHECK |
 | **MediaPipe Landmark Inference** | ~22–28 ms | $< 30$ ms | ✅ PASS |
 | **Classifier Decision Latency** | $< 0.5$ ms | $< 2$ ms | ✅ PASS |
-| **End-to-End Latency** | ~86.2 ms | $< 35$ ms | ⚠️ INVESTIGATE |
+| **End-to-End Latency** | ~80.0 ms | $< 35$ ms | ⚠️ INVESTIGATE |
 
 ---
 
