@@ -1,7 +1,7 @@
-joblib
-matplotlib
+joblib==1.6.0
+matplotlib==3.11.1
 mediapipe==0.10.14
-numpy
-opencv-python
-pandas
-scikit-learn
+numpy==2.4.6
+opencv-python==5.0.0.93
+protobuf==4.25.9
+scikit-learn==1.9.0
