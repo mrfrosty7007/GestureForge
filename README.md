@@ -7,6 +7,7 @@
 [![MediaPipe](https://img.shields.io/badge/MediaPipe-Hands%2021%20Keypoints-007ACC?logo=google&logoColor=white)](https://developers.google.com/mediapipe)
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-RandomForest-F7931E?logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
 [![Performance](https://img.shields.io/badge/Performance-29--30%20FPS%20%7C%2034ms-brightgreen)](docs/latency_benchmark.md)
+[![YouTube Demo](https://img.shields.io/badge/YouTube-Watch%20Demo%20(1080p)-red?logo=youtube&logoColor=white)](https://youtu.be/HjYFgHaOaFU)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 GestureForge is a native real-time hand gesture recognition application and evaluation suite built with **Python**, **OpenCV**, **MediaPipe**, and **scikit-learn**.
@@ -15,14 +16,36 @@ It performs live hand tracking, scale- and translation-invariant gesture classif
 
 ---
 
+## 🎥 Live Demonstration Video
+
+<div align="center">
+  <a href="https://youtu.be/HjYFgHaOaFU" target="_blank">
+    <img src="https://img.youtube.com/vi/HjYFgHaOaFU/hqdefault.jpg" alt="GestureForge Live Video Walkthrough" width="760" style="border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);" />
+  </a>
+  <br/><br/>
+  <a href="https://youtu.be/HjYFgHaOaFU" target="_blank">
+    <img src="https://img.shields.io/badge/YouTube-Watch%20Full%20Demo%20(1080p)-red?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch Demo on YouTube" />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0">
+    <img src="https://img.shields.io/badge/Release-v1.0.0%20Download-blue?style=for-the-badge&logo=github&logoColor=white" alt="GitHub Release v1.0.0" />
+  </a>
+</div>
+
+> 📺 **Watch Full 1080p Video on YouTube**: [**https://youtu.be/HjYFgHaOaFU**](https://youtu.be/HjYFgHaOaFU) (2m 35s)  
+> *Covers: One-click launch (`run_app.bat`), 21 MediaPipe skeletal keypoint tracking, real-time gesture classification, simultaneous dual-hand recognition, live `REC` evidence recording, and automated `SESSION_REPORT.md` generation.*
+
+---
+
 ### ⚡ Quick Navigation
 
 | 🚀 Getting Started | 📊 Evaluation & Rubric | 🛠️ Reference |
 | :--- | :--- | :--- |
-| • [**Quick Start Launcher**](#-quick-start) | • [**2×2 Generalization Matrix**](#1-four-cell-generalization-table-22-matrix) | • [**Controls & Shortcuts**](#-controls) |
-| • [**Supported Gestures**](#-supported-gestures) | • [**Latency Benchmarks**](#2-latency-benchmarking-rubric-requirement) | • [**Live HUD Metrics**](#-live-metrics) |
-| • [**Performance Overview**](#-performance) | • [**Evidence Session Reports**](#3-user-friendly-evidence-recording-sessions) | • [**System Architecture**](#-architecture) |
-| • [**Project Structure**](#-project-structure) | • [**Deliverables Summary**](#-option-b-deliverables-checklist) | • [**License**](#-license) |
+| • [**Live Demo Video**](#-live-demonstration-video) | • [**2×2 Generalization Matrix**](#1-four-cell-generalization-table-22-matrix) | • [**Controls & Shortcuts**](#-controls) |
+| • [**Quick Start Launcher**](#-quick-start) | • [**Latency Benchmarks**](#2-latency-benchmarking-rubric-requirement) | • [**Live HUD Metrics**](#-live-metrics) |
+| • [**Supported Gestures**](#-supported-gestures) | • [**Evidence Session Reports**](#3-user-friendly-evidence-recording-sessions) | • [**System Architecture**](#-architecture) |
+| • [**Performance Overview**](#-performance) | • [**Deliverables Summary**](#-option-b-deliverables-checklist) | • [**License**](#-license) |
+| • [**Project Structure**](#-project-structure) | • [**GitHub Release**](https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0) | • [**YouTube Walkthrough**](https://youtu.be/HjYFgHaOaFU) |
 
 ---
 
@@ -265,7 +288,7 @@ GestureForge/
 
 ---
 
-## 🎥 Demo Video
+## 🎥 Demo Video Details & Breakdown
 
 Demonstration recording showcasing live dual-hand tracking, real-time gesture classification, dynamic HUD overlays, evidence recording, and executive report generation:
 
@@ -273,7 +296,8 @@ Demonstration recording showcasing live dual-hand tracking, real-time gesture cl
   <img src="assets/demo_preview.gif" alt="GestureForge Live Demonstration Preview" width="720" style="border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);" />
 </div>
 
-* 🎬 **Direct Full-Length Video Stream / Download**: [Watch `gestureforge_demo.mp4`](https://github.com/mrfrosty7007/GestureForge/raw/main/assets/gestureforge_demo.mp4) (1080p Full HD, 2m 35s)
+* 📺 **YouTube Live Stream**: [**Watch on YouTube (`https://youtu.be/HjYFgHaOaFU`)**](https://youtu.be/HjYFgHaOaFU) (1080p Full HD, 2m 35s)
+* 🎬 **Direct Full-Length Video Stream / Download**: [Watch `gestureforge_demo.mp4`](https://github.com/mrfrosty7007/GestureForge/raw/main/assets/gestureforge_demo.mp4)
 * 📦 **GitHub Official Release Asset**: Available under [Releases v1.0.0](https://github.com/mrfrosty7007/GestureForge/releases/tag/v1.0.0)
 
 ### Video Walkthrough Highlights
